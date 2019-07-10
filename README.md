@@ -1,63 +1,47 @@
-# cycle bit scalable psuedo random number generator (rcb-generator)
+# rcmalloc - robust/fast/low fragmentation memory allocator, that allows threaded/unthreaded memory pools
 
-rcb-generator is a new kind of psuedo random number generator. rcb-generator is a bit pattern generator made to be fast, scalable, high quality psuedo random number generator.
-
-rcb-generator is provided as a C++ source file (single header file) or C source and header files.
+Fast reallocation for custom written vector/growable list class.
+To improve performance and reduce fragmentation the allocator include a custom reallocate function that allows byte movement ranges to be specified from a custom vector class (not included). Allowing fast and efficient memmove calls during reallocation as well as preventing multiple memmoves usually needed by C realloc function if used with a "vector" class.
 
 MIT Licence - See Source/License file
 
-# How to use - C++/C
+# Example use - C++
 
 ```C++
 #include <iostream>
-#include <ctime>
 
-#include "rcb_generator.hpp"
+#include "rcmalloc.hpp"
 
 using namespace std;
 
+#define POOLB		1
+#define POOLC		1
+
 int main() {
-	//seed the random number generator with the system clock
-	rcbg::rcb_generator<unsigned> rnd(time(NULL));
-	
-	//get a random number
-	unsigned random_number = rnd.rand();
-	
-	//print it
-	cout << "random number generated : " << random_number << endl;
+	//TODO add tests
+	//use new and delete replacements
+	{
+
+	}
+
+	//use allocate/reallocate/deallocate directly
+	//use new feature of reallocate that allows the efficient movement of memory when reallocating
+	{
+
+	}
+
+	//as smaller global memory pools - with or without threading
+	{
+
+	}
+
+	//as replacement for std allocator
+	{
+
+	}
 	return 0;
 }
 ```
-
-```C
-#include <stdio.h>
-#include <time.h>
-
-#include "rcb_generator.h"
-
-int main() {
-	/* seed the random number generator with the system clock */
-	rcb_gen rnd;
-	rcb_init(&rnd, time(NULL));
-
-	/* get a random number */
-	unsigned random_number = rcb_rand(&rnd);
-
-	/* print it */
-	printf("random number generated : %u", random_number);
-	return 0;
-}
-```
-
-To change the bit size of the data stored in and returned from the C code for rcb_generator, edit `RCG_T_TYPE` in `rcb_generator.h` to the desired unsigned type.
-
-# more on rcb-generator design
-
-rcb-generator provides fast, scalable, random number generation with a very good period (2^bit-length minimum).
-
-rcb-generator is very fast; slower than many shift/modulo generators but about twice as fast (or more) than Mersenne Twister in my tests.
-
-Because rcb-generator operates on a bit pattern not on a value this makes the generator highly scalable and reusable, unlike other shift/modulo generators/MT and random number generators in general.
 
 Please use and let me know what you think.
 
