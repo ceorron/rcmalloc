@@ -645,6 +645,17 @@ typename Alloc::pointer allocate_init_count(size_t cnt) {
 		new (tmp) typename Alloc::value_type;
 	return rtn;
 }
+template<typename Alloc>
+typename Alloc::pointer allocate_init_count(size_t cnt, const typename Alloc::value_type& val) {
+	//allocate using the allocator
+	Alloc allctr;
+	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(sizeof(typename Alloc::value_type) * cnt);
+	//do init
+	typename Alloc::pointer tmp = rtn;
+	for(size_t i = 0; i < cnt; ++i, ++tmp)
+		new (tmp) typename Alloc::value_type(val);
+	return rtn;
+}
 
 template<typename Alloc>
 inline typename Alloc::pointer allocate_init() {
@@ -703,6 +714,23 @@ inline T* new_T(const T& val) {
 template<typename T>
 inline T* new_T(T&& val) {
 	return allocate_init< default_allocator< T > >(std::move(val));
+}
+template<typename T>
+inline T* new_T_array(size_t cnt) {
+	return allocate_init_count< default_allocator< T > >(cnt);
+}
+template<typename T>
+inline T* new_T_array(const T& val, size_t cnt) {
+	return allocate_init_count< default_allocator< T > >(cnt, val);
+}
+
+template<typename T>
+inline void delete_T(T* ptr) {
+	destruct_deallocate_count< default_allocator< T > >(ptr, 1);
+}
+template<typename T>
+inline void delete_T_array(T* ptr, size_t cnt) {
+	destruct_deallocate_count< default_allocator< T > >(ptr, cnt);
 }
 
 }

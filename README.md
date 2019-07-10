@@ -48,15 +48,15 @@ int main() {
 		a_struct& a3 = *new_T(a_struct{300, 10.0f});
 
 		//allocate, construct list
-		a_struct* l1 = allocate_init_count<default_allocator<a_struct>>(100);
+		a_struct* l1 = new_T_array<a_struct>(100);
 
 		//destruct deallocate
-		destruct_deallocate<default_allocator<a_struct>>(&a1);
-		destruct_deallocate<default_allocator<a_struct>>(&a2);
-		destruct_deallocate<default_allocator<a_struct>>(&a3);
+		delete_T(&a1);
+		delete_T(&a2);
+		delete_T(&a3);
 
 		//destruct deallocate list
-		destruct_deallocate_count<default_allocator<a_struct>>(l1, 100);
+		delete_T_array<a_struct>(l1, 100);
 	}
 
 	//use allocate/reallocate/deallocate directly
@@ -90,7 +90,7 @@ int main() {
 
 		//init the new memory in l2
 		for(unsigned i = 40; i < 140; ++i)
-			l2[i] = a_struct{300, 2.5f};
+			l2[i] = a_struct{250, 2.5f};
 
 		allctr.deallocate(l2, 200 * sizeof(a_struct), std::alignment_of<a_struct>(), sizeof(a_struct));
 	}
@@ -120,8 +120,8 @@ int main() {
 	{
 		vector<a_struct, default_std_allocator<a_struct>> vec;
 		vec.push_back(a_struct{800, 45.0f});
-		vec.push_back(a_struct{800, 45.0f});
-		vec.push_back(a_struct{800, 45.0f});
+		vec.push_back(a_struct{350, 30.0f});
+		vec.push_back(a_struct{180, 72.0f});
 	}
 	cout << "End Test" << endl;
 	return 0;
