@@ -7,12 +7,12 @@ Features
  - small, minimal design about 1300 lines of c++ total!!
  - returns aligned memory for all types for faster load and store - alignment can be set on per allocation basis
  - low fragmentation, uses smallest matching size avaliable on allocation
- - smart reallocation function gives lower fragmentation/better locality of reference than default std allocator (using custom vector class)
+ - smart reallocation function gives lower fragmentation/better locality of reference than default std allocator (using custom vector class)(*)
  - thread-safe, when needed
  - memory pools - v.fast replacement for memory pools that generalises better
  - simple type safe alternatives to new/new[] and delete/delete[]
 
-Fast reallocation for custom written vector/growable list class.
+(*)Fast reallocation for custom written vector/growable list class.
 To improve performance and reduce fragmentation the allocator include a custom smart reallocate function that allows byte movement ranges to be specified from a custom vector class (not included). Allowing fast and efficient memmove calls during reallocation as well as preventing multiple memmoves usually needed by C realloc function if used with a "vector" class.
 
 MIT Licence - See Source/License file
