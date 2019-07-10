@@ -36,7 +36,7 @@ struct a_struct {
 };
 
 #define POOLB		1
-#define POOLC		1
+#define POOLC		2
 
 int main() {
 	//use new/new[] and delete/delete[] replacements
