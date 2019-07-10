@@ -56,7 +56,7 @@ int main() {
 		delete_T(&a3);
 
 		//destruct deallocate list
-		delete_T_array<a_struct>(l1, 100);
+		delete_T_array(l1, 100);
 	}
 
 	//use allocate/reallocate/deallocate directly
