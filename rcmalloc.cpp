@@ -1,0 +1,582 @@
+/*----------------------------------------------------------------------------------*\
+ |																					|
+ | rcmalloc.cpp	 																	|
+ |																					|
+ | Copyright (c) 2019 Richard Cookman												|
+ |																					|
+ | Permission is hereby granted, free of charge, to any person obtaining a copy		|
+ | of this software and associated documentation files (the "Software"), to deal	|
+ | in the Software without restriction, including without limitation the rights		|
+ | to use, copy, modify, merge, publish, distribute, sublicense, and/or sell		|
+ | copies of the Software, and to permit persons to whom the Software is			|
+ | furnished to do so, subject to the following conditions:							|
+ |																					|
+ | The above copyright notice and this permission notice shall be included in all	|
+ | copies or substantial portions of the Software.									|
+ |																					|
+ | THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR		|
+ | IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,			|
+ | FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE		|
+ | AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER			|
+ | LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,	|
+ | OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE	|
+ | SOFTWARE.																		|
+ |																					|
+\*----------------------------------------------------------------------------------*/
+
+#include "rcmalloc.hpp"
+
+namespace rcmalloc {
+
+void* vallocator::internal_dereference(void* ptr) {
+	//pointer dereference
+	//NEEDED by garbage collectors only
+	return ptr;
+}
+vallocator& vallocator::get_allocator() {
+	return *this;
+}
+
+void* align(size_t alignment, size_t size_of, void*& ptr) {
+	//we are not concerned about the size of the resulting memory location just pass in a large value
+	size_t size = size_of * 10;
+	std::align(alignment,
+			   size_of,
+			   ptr,
+			   size);
+	return ptr;
+}
+char getMemOffset(void* ptr, size_t alignment, size_t size_of) {
+	if(alignment < 2)
+		return 0;
+
+	void* rtn = ptr;
+	rcmalloc::align(alignment,
+				 size_of,
+				 rtn);
+
+	if(rtn == ptr)
+		rtn = (char*)rtn + alignment;
+
+	//store the offset to the true block of this
+	return dist((char*)ptr, (char*)rtn);
+}
+void* setAlignment(void* ptr, size_t alignment, size_t size_of) {
+	if(alignment < 2)
+		return ptr;
+
+	void* rtn = ptr;
+	rcmalloc::align(alignment,
+				 size_of,
+				 rtn);
+
+	if(rtn == ptr)
+		rtn = (char*)rtn + alignment;
+
+	//store the offset to the true block of this
+	char offset = dist((char*)ptr, (char*)rtn);
+	*((char*)rtn - 1) = offset;
+	return rtn;
+}
+void* getAlignment(void* ptr, size_t alignment, size_t& size, size_t& offset) {
+	if(alignment < 2) {
+		offset = 0;
+		return ptr;
+	}
+
+	size += alignment;
+	offset = *((char*)ptr - 1);
+	return (char*)ptr - offset;
+}
+bool moveEndFirst(char* ptr1, ssize_t keep_from_byte_offset,
+				  char* ptr2, ssize_t keep_to_byte_offset) {
+	return (ptr2 + keep_to_byte_offset) > (ptr1 + keep_from_byte_offset);
+}
+void* doMemMove(char* frmPtr, char* toPtr,
+				ssize_t keep_from_byte_offset_1,
+				ssize_t keep_from_byte_offset_2,
+				ssize_t keep_to_byte_offset_1,
+				ssize_t keep_to_byte_offset_2,
+				size_t keep_byte_size_1,
+				size_t keep_byte_size_2) {
+	//move the memory
+	if(moveEndFirst((char*)frmPtr, keep_from_byte_offset_2,
+					(char*)toPtr, keep_to_byte_offset_2)) {
+		std::swap(keep_from_byte_offset_1, keep_from_byte_offset_2);
+		std::swap(keep_to_byte_offset_1, keep_to_byte_offset_2);
+		std::swap(keep_byte_size_1, keep_byte_size_2);
+	}
+	memmove((char*)toPtr + keep_to_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1, keep_byte_size_1);
+	memmove((char*)toPtr + keep_to_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2, keep_byte_size_2);
+	return toPtr;
+}
+
+
+void sortMemUp(basic_list& sizes, bytesizes* itr) {
+	//move this about in the sizes list
+	while(itr != begin_basic_list<bytesizes>(sizes)) {
+		auto tmp = itr;
+		--tmp;
+		//test less - not less than then break
+		if(!(itr->bytecount < tmp->bytecount || (itr->bytecount == tmp->bytecount && itr->ptr < tmp->ptr)))
+			break;
+		std::swap(*tmp, *itr);
+		--itr;
+	}
+}
+void sortMemDown(basic_list& sizes, bytesizes* itr) {
+	//move this about in the sizes list
+	while(itr != end_basic_list<bytesizes>(sizes) - 1) {
+		auto tmp = itr;
+		++tmp;
+		//test less - not less than then break
+		if(!(tmp->bytecount < itr->bytecount || (tmp->bytecount == itr->bytecount && tmp->ptr < itr->ptr)))
+			break;
+		std::swap(*tmp, *itr);
+		++itr;
+	}
+}
+void memblock::init() {
+	sizes = init_basic_list<bytesizes>(30);
+	freelst = init_basic_list<bytesizes>(30);
+}
+memblock::~memblock() {
+	//NOTE doesn't free ptr here - faster final cleanup!!!
+	/*size_t bytetotal;
+	size_t byteremain;
+	char* ptr;*/
+	dtor_basic_list<bytesizes>(sizes);
+	dtor_basic_list<bytesizes>(freelst);
+}
+void* memblock::internal_malloc_at_hint(size_t size, bytesizes* pfrelst, void* hint) {
+	//can we allocate here??
+	if(pfrelst != end_basic_list<bytesizes>(freelst) &&
+	   (char*)hint >= pfrelst->ptr && ((char*)hint + size) <= (pfrelst->ptr + pfrelst->bytecount)) {
+		//get the size for this
+		bytesizes* sout;
+		rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), *pfrelst,
+			[](const bytesizes& lhs,
+			   const bytesizes& rhs) {
+				return (lhs.bytecount < rhs.bytecount || (lhs.bytecount == rhs.bytecount && lhs.ptr < rhs.ptr));
+			}, sout);
+
+		//allocate this here and now
+		if(((char*)hint == pfrelst->ptr) & (((char*)hint + size) == (pfrelst->ptr + pfrelst->bytecount))) {
+			//takes whole block - remove block and size
+			erase_basic_list<bytesizes>(freelst, pfrelst);
+			erase_basic_list<bytesizes>(sizes, sout);
+		} else if((char*)hint == pfrelst->ptr) {
+			//matches front of block
+			pfrelst->bytecount -= size;
+			pfrelst->ptr += size;
+			sout->bytecount -= size;
+			sout->ptr += size;
+
+			sortMemUp(sizes, sout);
+		} else if(((char*)hint + size) == (pfrelst->ptr + pfrelst->bytecount)) {
+			//matches back of block
+			pfrelst->bytecount -= size;
+			sout->bytecount -= size;
+
+			sortMemUp(sizes, sout);
+		} else {
+			//split block and size
+			bytesizes nszs;
+			nszs.bytecount = pfrelst->bytecount - (dist(pfrelst->ptr, (char*)hint) + size);
+			nszs.ptr = (char*)hint + size;
+			bytesizes tszs = nszs;
+
+			pfrelst->bytecount = dist(pfrelst->ptr, (char*)hint);
+			sout->bytecount = dist(pfrelst->ptr, (char*)hint);
+
+			sortMemUp(sizes, sout);
+
+			//insert a new block after this one
+			insert_basic_list<bytesizes>(freelst, pfrelst + 1, std::move(nszs));
+
+			bytesizes* iout;
+			rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), tszs,
+				[](const bytesizes& lhs,
+				   const bytesizes& rhs) {
+					return (lhs.bytecount < rhs.bytecount || (lhs.bytecount == rhs.bytecount && lhs.ptr < rhs.ptr));
+				}, iout);
+			insert_basic_list<bytesizes>(sizes, iout, std::move(tszs));
+		}
+		return hint;
+	}
+	return 0;
+}
+void* memblock::internal_malloc(size_t size) {
+	//NOTE size always > 0
+	if(byteremain < size) return 0;
+
+	bytesizes bszs;
+	bszs.bytecount = size;
+
+	//search the sizes
+	bytesizes* sout;
+	rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), bszs,
+		[](const bytesizes& lhs,
+		   const bytesizes& rhs) {
+			return lhs.bytecount < rhs.bytecount;
+		}, sout);
+
+	//couldn't find big enough
+	if(sout == end_basic_list<bytesizes>(sizes)) return 0;
+
+	//search the pointers
+	bszs.ptr = sout->ptr;
+	bytesizes* pout;
+	rcmalloc::binary_search(begin_basic_list<bytesizes>(freelst), end_basic_list<bytesizes>(freelst), bszs,
+		[](const bytesizes& lhs,
+		   const bytesizes& rhs) {
+			return lhs.ptr < rhs.ptr;
+		}, pout);
+
+	void* rslt = pout->ptr;
+
+	byteremain -= size;
+	if(sout->bytecount == size) {
+		//just remove both of these
+		erase_basic_list<bytesizes>(freelst, pout);
+		erase_basic_list<bytesizes>(sizes, sout);
+	} else {
+		//"split" this
+		//modify both of these
+		sout->bytecount -= size;
+		sout->ptr += size;
+
+		pout->bytecount -= size;
+		pout->ptr += size;
+
+		//move this about in the sizes list
+		sortMemUp(sizes, sout);
+	}
+	return rslt;
+}
+inline bool connectsBefore(basic_list& freelst, const bytesizes& fm,
+						   bytesizes* before,
+						   bytesizes* after) {
+	if(before == begin_basic_list<bytesizes>(freelst) - 1)
+		return false;
+	return (before->ptr + before->bytecount) == fm.ptr;
+}
+inline bool connectsAfter(basic_list& freelst, const bytesizes& fm,
+						  bytesizes* before,
+						  bytesizes* after) {
+	if(after == end_basic_list<bytesizes>(freelst))
+		return false;
+	return (fm.ptr + fm.bytecount) == after->ptr;
+}
+inline bool connectsBeforeAndAfter(basic_list& freelst, const bytesizes& fm,
+								   bytesizes* before,
+								   bytesizes* after) {
+	return connectsBefore(freelst, fm, before, after) &&
+		   connectsAfter(freelst, fm, before, after);
+}
+void* memblock::internal_realloc(
+		const realloc_data* dat,
+		char offset,
+		bytesizes*& freeOut
+) {
+	/*hints - user hint*/
+	bytesizes* bsize0 = 0;
+	void* hint0 = dat->hint;
+	/*keep before in place - minimise move - just expand*/
+	bytesizes* bsize1 = 0;
+	void* hint1 = 0;
+	/*keep after in place - minimise move - just expand*/
+	bytesizes* bsize2 = 0;
+	void* hint2 = 0;
+	/*give this space at the beginning - minimise relocation*/
+	bytesizes* bsize3 = 0;
+	void* hint3 = 0;
+	/*into the current memory block - minimise fragmentation*/
+	bytesizes* bsize4 = 0;
+	void* hint4 = 0;
+
+	if(!dat->ptr) {
+		void* rslt = 0;
+		if(rslt == 0 && hint0) {
+			bytesizes bszs;
+			bszs.bytecount = dat->to_byte_size;
+			bszs.ptr = (char*)hint0;
+			rcmalloc::binary_search(begin_basic_list<bytesizes>(freelst), end_basic_list<bytesizes>(freelst), bszs,
+				[](const bytesizes& lhs,
+				   const bytesizes& rhs) {
+					return lhs.ptr < rhs.ptr;
+				}, bsize0);
+			//try to allocate at the hint
+			rslt = internal_malloc_at_hint(dat->to_byte_size, bsize0, hint0);
+		}
+		if(rslt == 0)
+			rslt = internal_malloc(dat->to_byte_size);
+		if(rslt == 0)
+			return 0;
+		//do alignment
+		if(dat->alignment < 2)
+			return rslt;
+
+		void* rtn = rslt;
+		rcmalloc::align(dat->alignment,
+					 dat->size_of,
+					 rtn);
+
+		if(rtn == rslt)
+			rtn = (char*)rtn + dat->alignment;
+
+		//store the offset to the true block of this
+		char offset = dist((char*)rslt, (char*)rtn);
+		*((char*)rtn - 1) = offset;
+		return rtn;
+	}
+
+	//do free before allocation!
+	internal_free(dat->ptr, dat->from_byte_size, freeOut);
+
+	void* rslt = 0;
+	{
+		//calculate the hints
+		if(rslt == 0 && hint0) {
+			bytesizes bszs;
+			bszs.bytecount = dat->to_byte_size;
+			bszs.ptr = (char*)hint0;
+			rcmalloc::binary_search(begin_basic_list<bytesizes>(freelst), end_basic_list<bytesizes>(freelst), bszs,
+				[](const bytesizes& lhs,
+				   const bytesizes& rhs) {
+					return lhs.ptr < rhs.ptr;
+				}, bsize0);
+			//try to allocate at the hint
+			rslt = internal_malloc_at_hint(dat->to_byte_size, bsize0, hint0);
+		}
+
+		if(rslt == 0) {
+			//keep the front the same
+			bsize1 = freeOut;
+			hint1 = ((char*)dat->ptr + offset + dat->keep_from_byte_offset_1) - dat->keep_to_byte_offset_1 - offset;
+			//keep the back the same
+			bsize2 = freeOut;
+			hint2 = ((char*)dat->ptr + offset + dat->keep_from_byte_offset_2) - dat->keep_to_byte_offset_2 - offset;
+
+			//try to allocate the largest of the two first
+			if(dat->keep_byte_size_2 > dat->keep_byte_size_1) {
+				std::swap(hint1, hint2);
+				std::swap(bsize1, bsize2);
+			}
+
+			if(rslt == 0)
+				rslt = internal_malloc_at_hint(dat->to_byte_size, bsize1, hint1);
+			if(rslt == 0)
+				rslt = internal_malloc_at_hint(dat->to_byte_size, bsize2, hint2);
+		}
+
+		//move this into the largest of the free blocks - give this space at the beginning
+		if(rslt == 0) {
+			bytesizes bszs = *(end_basic_list<bytesizes>(sizes) - 1);
+			rcmalloc::binary_search(begin_basic_list<bytesizes>(freelst), end_basic_list<bytesizes>(freelst), bszs,
+				[](const bytesizes& lhs,
+				   const bytesizes& rhs) {
+					return lhs.ptr < rhs.ptr;
+				}, bsize3);
+			hint3 = bsize3->ptr + dat->to_byte_size;
+
+			rslt = internal_malloc_at_hint(dat->to_byte_size, bsize3, hint3);
+		}
+
+		if(rslt == 0) {
+			bsize4 = freeOut;
+			hint4 = freeOut->ptr;
+			rslt = internal_malloc_at_hint(dat->to_byte_size, bsize4, hint4);
+		}
+
+		//tried malloc at all of the hint locations - just malloc
+		if(rslt == 0)
+			rslt = internal_malloc(dat->to_byte_size);
+		if(rslt == 0)
+			return 0;
+	}
+
+
+	//do alignment
+	if(dat->alignment >= 2) {
+		void* rtn = rslt;
+		rcmalloc::align(dat->alignment,
+					 dat->size_of,
+					 rtn);
+
+		if(rtn == rslt)
+			rtn = (char*)rtn + dat->alignment;
+
+		//store the offset to the true block of this
+		char offset = dist((char*)rslt, (char*)rtn);
+		*((char*)rtn - 1) = offset;
+		rslt = rtn;
+	}
+
+	//do memove
+	return doMemMove((char*)dat->ptr + offset, (char*)rslt,
+					 dat->keep_from_byte_offset_1,
+					 dat->keep_from_byte_offset_2,
+					 dat->keep_to_byte_offset_1,
+					 dat->keep_to_byte_offset_2,
+					 dat->keep_byte_size_1,
+					 dat->keep_byte_size_2);
+}
+void memblock::internal_free(void* p, size_t size, bytesizes*& freeOut) {
+	//if this isn't within this!
+	if((char*)p < ptr || (char*)p >= (ptr + bytetotal))
+		return;
+
+	if(byteremain == 0) {
+		//simply return this, everything allocated
+		byteremain += size;
+
+		bytesizes fm;
+		fm.bytecount = size;
+		fm.ptr = (char*)p;
+		bytesizes tm = fm;
+
+		push_back_basic_list<bytesizes>(sizes, std::move(fm));
+		push_back_basic_list<bytesizes>(freelst, std::move(tm));
+		freeOut = begin_basic_list<bytesizes>(freelst);
+		return;
+	}
+
+	//find the before and after on the free list
+	bytesizes fm;
+	fm.bytecount = size;
+	fm.ptr = (char*)p;
+	bytesizes* before;
+	bytesizes* after;
+	rcmalloc::binary_search(begin_basic_list<bytesizes>(freelst), end_basic_list<bytesizes>(freelst), fm,
+		[](const bytesizes& lhs,
+		   const bytesizes& rhs) {
+			return lhs.ptr < rhs.ptr;
+		}, after);
+
+	before = after;
+	--before;
+
+	if(connectsBeforeAndAfter(freelst, fm, before, after)) {
+		//increase the size of before
+		//search the sizes to update
+		bytesizes* sout;
+		rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), *before,
+			[](const bytesizes& lhs,
+			   const bytesizes& rhs) {
+				return (lhs.bytecount < rhs.bytecount || (lhs.bytecount == rhs.bytecount && lhs.ptr < rhs.ptr));
+			}, sout);
+		bytesizes* aout;
+		rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), *after,
+			[](const bytesizes& lhs,
+			   const bytesizes& rhs) {
+				return (lhs.bytecount < rhs.bytecount || (lhs.bytecount == rhs.bytecount && lhs.ptr < rhs.ptr));
+			}, aout);
+
+		before->bytecount += fm.bytecount;
+		before->bytecount += after->bytecount;
+		*sout = *before;
+
+		//remove after
+		size_t beforePos = dist(begin_basic_list<bytesizes>(sizes), sout);
+		size_t afterPos = dist(begin_basic_list<bytesizes>(sizes), aout);
+
+		freeOut = erase_basic_list<bytesizes>(freelst, after);
+		erase_basic_list<bytesizes>(sizes, aout);
+		--freeOut;
+
+		if(afterPos <= beforePos)
+			--beforePos;
+
+		sortMemDown(sizes, begin_basic_list<bytesizes>(sizes) + beforePos);
+	} else if(connectsBefore(freelst, fm, before, after)) {
+		//increase the size of before
+		//search the sizes to update
+		bytesizes* sout;
+		rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), *before,
+			[](const bytesizes& lhs,
+			   const bytesizes& rhs) {
+				return (lhs.bytecount < rhs.bytecount || (lhs.bytecount == rhs.bytecount && lhs.ptr < rhs.ptr));
+			}, sout);
+
+		before->bytecount += fm.bytecount;
+		*sout = *before;
+		sortMemDown(sizes, sout);
+		freeOut = before;
+	} else if(connectsAfter(freelst, fm, before, after)) {
+		//increate the size of after
+		//search the sizes to update
+		bytesizes* sout;
+		rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), *after,
+			[](const bytesizes& lhs,
+			   const bytesizes& rhs) {
+				return (lhs.bytecount < rhs.bytecount || (lhs.bytecount == rhs.bytecount && lhs.ptr < rhs.ptr));
+			}, sout);
+
+		after->ptr = fm.ptr;
+		after->bytecount += fm.bytecount;
+		*sout = *after;
+		sortMemDown(sizes, sout);
+		freeOut = after;
+	} else {
+		bytesizes tm = fm;
+		//connects neither - reinsert
+		freeOut = insert_basic_list<bytesizes>(freelst, after, std::move(fm));
+
+		//search the sizes to insert
+		bytesizes* sout;
+		rcmalloc::binary_search(begin_basic_list<bytesizes>(sizes), end_basic_list<bytesizes>(sizes), tm,
+			[](const bytesizes& lhs,
+			   const bytesizes& rhs) {
+				return (lhs.bytecount < rhs.bytecount || (lhs.bytecount == rhs.bytecount && lhs.ptr < rhs.ptr));
+			}, sout);
+		insert_basic_list<bytesizes>(sizes, sout, std::move(tm));
+	}
+
+	byteremain += size;
+	return;
+}
+
+void addMemBlock(basic_list& blocklst, memblock* nMmBlck) {
+	memblock** out;
+	rcmalloc::binary_search(begin_basic_list<memblock*>(blocklst), end_basic_list<memblock*>(blocklst), nMmBlck,
+					[](memblock* lhs, memblock* rhs) {
+						return lhs->ptr < rhs->ptr;
+					}, out);
+	insert_basic_list<memblock*>(blocklst, out, std::move(nMmBlck));
+}
+void findBlockForPointer(basic_list& blocklst, void* ptr,
+						 memblock**& out) {
+	memblock stkBlck;
+	stkBlck.ptr = (char*)ptr;
+	memblock* sMmBlck = &stkBlck;
+
+	bool rtn = rcmalloc::binary_search(begin_basic_list<memblock*>(blocklst), end_basic_list<memblock*>(blocklst), sMmBlck,
+					[=](memblock* lhs, memblock* rhs) {
+						return lhs->ptr < rhs->ptr;
+					}, out);
+	//if we don't find it then, go one back this is what we are searching for
+	if(!rtn)
+		--out;
+}
+void sortMemBlockDown(basic_list& blockfreespace,
+					  memblock** blk) {
+	//search blockfreespace for this block
+	auto itr = end_basic_list<memblock*>(blockfreespace) - 1;
+	for(; itr != begin_basic_list<memblock*>(blockfreespace) - 1; --itr)
+		if(*itr == *blk)
+			break;
+
+	//move this about in the sizes list
+	while(itr != end_basic_list<memblock*>(blockfreespace) - 1) {
+		auto tmp = itr;
+		++tmp;
+		//test less - not less than then break
+		if(!((*itr)->byteremain > (*tmp)->byteremain))
+			break;
+		std::swap(*tmp, *itr);
+		++itr;
+	}
+}
+
+}
