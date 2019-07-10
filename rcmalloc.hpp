@@ -33,7 +33,7 @@
 
 namespace rcmalloc {
 
-const unsigned ALLOC_PAGE_SIZE = 4096;
+const unsigned ALLOC_PAGE_SIZE = 4096 * 4;
 
 template<typename U>
 inline ptrdiff_t dist(U* first, U* last) {
