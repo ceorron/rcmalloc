@@ -1,7 +1,7 @@
 # rcmalloc - robust/easy-to-use/fast/low fragmentation memory allocator, that allows thread-safe/unthreaded memory pools
 
 Features
- - robust, no know bugs or issues
+ - robust, no known bugs or issues
  - fast, allocates large blocks that are divided up for individual allocations preventing slow OS calls to malloc/realloc/free
  - fast, simple design/binary search/pointer arithmetic ensures fast allocation/reallocation/deallocation
  - small, minimal design about 1300 lines of c++ total!!
