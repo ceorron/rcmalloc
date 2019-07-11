@@ -181,12 +181,15 @@ struct object_data {
 template<typename T>
 struct object_move_generator {
 	static void object_move(void* frm, void* to) {
-		new (to) T(std::move(*(T*)frm));
+		if constexpr (!std::is_trivial<T>::value)
+			new (to) T(std::move(*(T*)frm));
 	}
 	static void object_intermediary_move(void* frm, void* to) {
-		//move to intermediary first
-		T intermediary(std::move(*(T*)frm));
-		new (to) T(std::move(intermediary));
+		if constexpr (!std::is_trivial<T>::value) {
+			//move to intermediary first
+			T intermediary(std::move(*(T*)frm));
+			new (to) T(std::move(intermediary));
+		}
 	}
 };
 
@@ -207,6 +210,7 @@ struct realloc_data {
 	size_t size_of;
 	object_move_func move_func;
 	object_move_func intermediary_move_func;
+	bool istrivial;
 };
 
 template<typename T>
@@ -215,8 +219,11 @@ realloc_data init_realloc_data() {
 	memset(&rtn, 0, sizeof(realloc_data));
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
-	rtn.move_func = object_move_generator<T>::object_move;
-	rtn.intermediary_move_func = object_move_generator<T>::object_intermediary_move;
+	if constexpr (!std::is_trivial<T>::value) {
+		rtn.move_func = object_move_generator<T>::object_move;
+		rtn.intermediary_move_func = object_move_generator<T>::object_intermediary_move;
+	}
+	rtn.istrivial = std::is_trivial<T>::value;
 	return rtn;
 }
 
