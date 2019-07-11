@@ -135,7 +135,7 @@ void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
 		//better performance for trivially copyable types
 		memmove((char*)begto, (char*)begfrm, dist((char*)begfrm, (char*)endfrm));
 	} else {
-		if((char*)begfrm >= (char*)begto && (char*)begfrm < (char*)endto) {
+		if((char*)begto >= (char*)begfrm && (char*)begto < (char*)endfrm) {
 			//overlap at the beginning
 			if((size_t)abs((char*)endfrm - (char*)endto) < dat.size_of)
 				//if we need an intermediary (partial object overlap)
@@ -145,7 +145,7 @@ void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
 				move_object_list_backward(begfrm, endfrm, endto,
 										  dat.size_of, dat.move_func);
 			return;
-		} else if((char*)endfrm >= (char*)begto && (char*)endfrm < (char*)endto) {
+		} else if((char*)endto >= (char*)begfrm && (char*)endto < (char*)endfrm) {
 			//overlap at the end
 			if((size_t)abs((char*)begfrm - (char*)begto) < dat.size_of)
 				//if we need an intermediary (partial object overlap)
