@@ -178,6 +178,20 @@ struct object_data {
 	size_t size_of;
 };
 
+template<typename T>
+struct object_move_generator {
+	static void object_move(void* frm, void* to) {
+		new (to) T(std::move(*(T*)frm));
+	}
+	static void object_intermediary_move(void* frm, void* to) {
+		//move to intermediary first
+		T intermediary(std::move(*(T*)frm));
+		new (to) T(std::move(intermediary));
+	}
+};
+
+typedef void (*object_move_func)(void* frm, void* to);
+
 struct realloc_data {
 	void* ptr;
 	void* hint;
@@ -191,7 +205,20 @@ struct realloc_data {
 	ssize_t keep_to_byte_offset_2;
 	size_t alignment;
 	size_t size_of;
+	object_move_func move_func;
+	object_move_func intermediary_move_func;
 };
+
+template<typename T>
+realloc_data init_realloc_data() {
+	realloc_data rtn;
+	memset(&rtn, 0, sizeof(realloc_data));
+	rtn.alignment = std::alignment_of<T>();
+	rtn.size_of = sizeof(T);
+	rtn.move_func = object_move_generator<T>::object_move;
+	rtn.intermediary_move_func = object_move_generator<T>::object_intermediary_move;
+	return rtn;
+}
 
 struct vallocator {
 	virtual void* internal_malloc(size_t size, size_t alignment, size_t size_of) = 0;
@@ -212,12 +239,7 @@ void* getAlignment(void* ptr, size_t alignment, size_t& size, size_t& offset);
 bool moveEndFirst(char* ptr1, ssize_t keep_from_byte_offset,
 				  char* ptr2, ssize_t keep_to_byte_offset);
 void* doMemMove(char* frmPtr, char* toPtr,
-				ssize_t keep_from_byte_offset_1,
-				ssize_t keep_from_byte_offset_2,
-				ssize_t keep_to_byte_offset_1,
-				ssize_t keep_to_byte_offset_2,
-				size_t keep_byte_size_1,
-				size_t keep_byte_size_2);
+				const realloc_data& dat);
 void addMemBlock(basic_list& blocklst, memblock* nMmBlck);
 void findBlockForPointer(basic_list& blocklst, void* ptr,
 						 memblock**& out);
@@ -374,13 +396,7 @@ struct rc_allocator : public vallocator {
 			}
 
 			//do memove - guaranteed to have no overlap
-			doMemMove((char*)lclDat.ptr + offset, (char*)rslt,
-					  lclDat.keep_from_byte_offset_1,
-					  lclDat.keep_from_byte_offset_2,
-					  lclDat.keep_to_byte_offset_1,
-					  lclDat.keep_to_byte_offset_2,
-					  lclDat.keep_byte_size_1,
-					  lclDat.keep_byte_size_2);
+			doMemMove((char*)lclDat.ptr + offset, (char*)rslt, lclDat);
 
 			//free this block
 			sortMemBlockDown(blockfreespace, out);
@@ -461,13 +477,7 @@ struct rc_allocator : public vallocator {
 		if(lclDat.to_byte_size == 0) lclDat.to_byte_size = 1;
 		if(lclDat.from_byte_size == lclDat.to_byte_size)
 			//just move the memory
-			return doMemMove((char*)lclDat.ptr, (char*)lclDat.ptr,
-							 lclDat.keep_from_byte_offset_1,
-							 lclDat.keep_from_byte_offset_2,
-							 lclDat.keep_to_byte_offset_1,
-							 lclDat.keep_to_byte_offset_2,
-							 lclDat.keep_byte_size_1,
-							 lclDat.keep_byte_size_2);
+			return doMemMove((char*)lclDat.ptr, (char*)lclDat.ptr, lclDat);
 
 		//handle alignment - note alignment handled in internal_realloc_i
 		char offset = 0;
@@ -531,13 +541,7 @@ struct rc_multi_threaded_internal_allocator {
 		//for performance - don't lock on no change
 		if(dat->from_byte_size == dat->to_byte_size && dat->from_byte_size != 0)
 			//just move the memory
-			return doMemMove((char*)dat->ptr, (char*)dat->ptr,
-							 dat->keep_from_byte_offset_1,
-							 dat->keep_from_byte_offset_2,
-							 dat->keep_to_byte_offset_1,
-							 dat->keep_to_byte_offset_2,
-							 dat->keep_byte_size_1,
-							 dat->keep_byte_size_2);
+			return doMemMove((char*)dat->ptr, (char*)dat->ptr, *dat);
 
 		std::lock_guard<Mtx> lg(mutex);
 		return fia.internal_realloc(dat);

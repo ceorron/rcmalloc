@@ -84,7 +84,9 @@ int main() {
             /*ssize_t keep_to_byte_offset_1=*/ 0,
             /*ssize_t keep_to_byte_offset_2=*/ 140 * sizeof(a_struct),
             /*size_t alignment=*/ std::alignment_of<a_struct>(),
-            /*size_t size_of=*/ sizeof(a_struct)
+            /*size_t size_of=*/ sizeof(a_struct),
+            /*object_move_func move_func=*/ object_move_generator<a_struct>::object_move,
+            /*object_move_func intermediary_move_func=*/ object_move_generator<a_struct>::object_intermediary_move
         };
         l2 = (a_struct*)allctr.reallocate(&rdat);
 

@@ -88,17 +88,88 @@ void* getAlignment(void* ptr, size_t alignment, size_t& size, size_t& offset) {
 	offset = *((char*)ptr - 1);
 	return (char*)ptr - offset;
 }
+
+void move_object_list_forward(void* begfrm, void* endfrm, void* begto,
+							  size_t size_of, object_move_func move_func) {
+	char* lclbegfrm = (char*)begfrm;
+	char* lclendfrm = (char*)endfrm;
+	char* lclbegto = (char*)begto;
+
+	for(; lclbegfrm != lclendfrm; lclbegfrm+=size_of, lclbegto+=size_of)
+		move_func(lclbegfrm, lclbegto);
+}
+void move_object_list_backward(void* begfrm, void* endfrm, void* endto,
+							   size_t size_of, object_move_func move_func) {
+	char* lclbegfrm = (char*)begfrm - size_of;
+	char* lclendfrm = (char*)endfrm - size_of;
+	char* lclendto = (char*)endto - size_of;
+
+	for(; lclendfrm != lclbegfrm; lclendfrm-=size_of, lclendto-=size_of)
+		move_func(lclendfrm, lclendto);
+}
+void move_object_list_forward_intermediary(void* begfrm, void* endfrm, void* begto,
+										   size_t size_of, object_move_func intermediary_move_func) {
+	char* lclbegfrm = (char*)begfrm;
+	char* lclendfrm = (char*)endfrm;
+	char* lclbegto = (char*)begto;
+
+	for(; lclbegfrm != lclendfrm; lclbegfrm+=size_of, lclbegto+=size_of)
+		intermediary_move_func(lclbegfrm, lclbegto);
+}
+void move_object_list_backward_intermediary(void* begfrm, void* endfrm, void* endto,
+											size_t size_of, object_move_func intermediary_move_func) {
+	char* lclbegfrm = (char*)begfrm - size_of;
+	char* lclendfrm = (char*)endfrm - size_of;
+	char* lclendto = (char*)endto - size_of;
+
+	for(; lclendfrm != lclbegfrm; lclendfrm-=size_of, lclendto-=size_of)
+		intermediary_move_func(lclendfrm, lclendto);
+}
+void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
+			 const realloc_data& dat) {
+	//no move if moving to same place
+	if(begfrm == begto)
+		return;
+
+	if((char*)begfrm >= (char*)begto && (char*)begfrm < (char*)endto) {
+		//overlap at the beginning
+		if((size_t)abs((char*)endfrm - (char*)endto) < dat.size_of)
+			//if we need an intermediary (partial object overlap)
+			move_object_list_backward_intermediary(begfrm, endfrm, endto,
+												   dat.size_of, dat.intermediary_move_func);
+		else
+			move_object_list_backward(begfrm, endfrm, endto,
+									  dat.size_of, dat.move_func);
+		return;
+	} else if((char*)endfrm >= (char*)begto && (char*)endfrm < (char*)endto) {
+		//overlap at the end
+		if((size_t)abs((char*)begfrm - (char*)begto) < dat.size_of)
+			//if we need an intermediary (partial object overlap)
+			move_object_list_forward_intermediary(begfrm, endfrm, begto,
+												  dat.size_of, dat.intermediary_move_func);
+		else
+			move_object_list_forward(begfrm, endfrm, begto,
+									 dat.size_of, dat.move_func);
+		return;
+	}
+	//just move
+	move_object_list_forward(begfrm, endfrm, begto,
+							 dat.size_of, dat.move_func);
+	return;
+}
 bool moveEndFirst(char* ptr1, ssize_t keep_from_byte_offset,
 				  char* ptr2, ssize_t keep_to_byte_offset) {
 	return (ptr2 + keep_to_byte_offset) > (ptr1 + keep_from_byte_offset);
 }
 void* doMemMove(char* frmPtr, char* toPtr,
-				ssize_t keep_from_byte_offset_1,
-				ssize_t keep_from_byte_offset_2,
-				ssize_t keep_to_byte_offset_1,
-				ssize_t keep_to_byte_offset_2,
-				size_t keep_byte_size_1,
-				size_t keep_byte_size_2) {
+				const realloc_data& dat) {
+	size_t keep_byte_size_1 = dat.keep_byte_size_1;
+	size_t keep_byte_size_2 = dat.keep_byte_size_2;
+	ssize_t keep_from_byte_offset_1 = dat.keep_from_byte_offset_1;
+	ssize_t keep_from_byte_offset_2 = dat.keep_from_byte_offset_2;
+	ssize_t keep_to_byte_offset_1 = dat.keep_to_byte_offset_1;
+	ssize_t keep_to_byte_offset_2 = dat.keep_to_byte_offset_2;
+
 	//move the memory
 	if(moveEndFirst((char*)frmPtr, keep_from_byte_offset_2,
 					(char*)toPtr, keep_to_byte_offset_2)) {
@@ -106,8 +177,14 @@ void* doMemMove(char* frmPtr, char* toPtr,
 		std::swap(keep_to_byte_offset_1, keep_to_byte_offset_2);
 		std::swap(keep_byte_size_1, keep_byte_size_2);
 	}
-	memmove((char*)toPtr + keep_to_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1, keep_byte_size_1);
-	memmove((char*)toPtr + keep_to_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2, keep_byte_size_2);
+	//memmove((char*)toPtr + keep_to_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1, keep_byte_size_1);
+	memMove((char*)frmPtr + keep_from_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1 + keep_byte_size_1,
+			(char*)toPtr + keep_to_byte_offset_1, (char*)toPtr + keep_to_byte_offset_1 + keep_byte_size_1,
+			dat);
+	//memmove((char*)toPtr + keep_to_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2, keep_byte_size_2);
+	memMove((char*)frmPtr + keep_from_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2 + keep_byte_size_2,
+			(char*)toPtr + keep_to_byte_offset_2, (char*)toPtr + keep_to_byte_offset_2 + keep_byte_size_2,
+			dat);
 	return toPtr;
 }
 
@@ -414,13 +491,7 @@ void* memblock::internal_realloc(
 	}
 
 	//do memove
-	return doMemMove((char*)dat->ptr + offset, (char*)rslt,
-					 dat->keep_from_byte_offset_1,
-					 dat->keep_from_byte_offset_2,
-					 dat->keep_to_byte_offset_1,
-					 dat->keep_to_byte_offset_2,
-					 dat->keep_byte_size_1,
-					 dat->keep_byte_size_2);
+	return doMemMove((char*)dat->ptr + offset, (char*)rslt, *dat);
 }
 void memblock::internal_free(void* p, size_t size, bytesizes*& freeOut) {
 	//if this isn't within this!
