@@ -32,6 +32,10 @@ void vallocator::internal_add_stack_variable(void* stkptr, stack_variable_cleanu
 	//add pointer to stack item
 	//NEEDED by garbage collectors only
 }
+void vallocator::internal_remove_stack_variable_range(void* stkptr, size_t frame_size) {
+	//remove pointers to stack items
+	//NEEDED by garbage collectors only
+}
 void vallocator::internal_cleanup() {
 	//do stop the world cleanup
 	//NEEDED by garbage collectors only

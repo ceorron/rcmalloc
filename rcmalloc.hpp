@@ -227,7 +227,8 @@ realloc_data init_realloc_data() {
 	return rtn;
 }
 
-typedef void (*stack_variable_cleanup)(void* stkptr);
+struct vallocator;
+typedef void (*stack_variable_cleanup)(vallocator* allocator, void* stkptr);
 
 struct vallocator {
 	virtual void* internal_malloc(size_t size, size_t alignment, size_t size_of) = 0;
@@ -235,6 +236,7 @@ struct vallocator {
 	virtual void internal_free(void* ptr, size_t size, size_t alignment, size_t size_of) = 0;
 	//for garbage collectors
 	virtual void internal_add_stack_variable(void* stkptr, stack_variable_cleanup fptr);
+	virtual void internal_remove_stack_variable_range(void* stkptr, size_t frame_size);
 	virtual void internal_cleanup();
 	virtual void* internal_dereference(void* ptr);
 	//get pointer to this
