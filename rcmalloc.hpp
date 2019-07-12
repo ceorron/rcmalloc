@@ -383,7 +383,6 @@ struct rc_allocator : public vallocator {
 					);
 
 		if(rtn == 0) {
-			//if we cannot realloc this then realloc using the C functions to a size big enough to hold the current size
 			//allocate a new block to move this to
 			void* rslt = malloc_new_block(lclDat.to_byte_size);
 			if(rslt == 0) {
