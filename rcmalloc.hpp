@@ -227,13 +227,19 @@ realloc_data init_realloc_data() {
 	return rtn;
 }
 
+typedef void (*stack_variable_cleanup)(void* stkptr);
+
 struct vallocator {
 	virtual void* internal_malloc(size_t size, size_t alignment, size_t size_of) = 0;
 	virtual void* internal_realloc(const realloc_data* dat) = 0;
 	virtual void internal_free(void* ptr, size_t size, size_t alignment, size_t size_of) = 0;
-	virtual void internal_cleanup() = 0;
+	//for garbage collectors
+	virtual void internal_add_stack_variable(void* stkptr, stack_variable_cleanup fptr);
+	virtual void internal_cleanup();
 	virtual void* internal_dereference(void* ptr);
-	virtual vallocator& get_allocator();
+	//get pointer to this
+	vallocator& get_allocator();
+	const vallocator& get_allocator() const;
 };
 
 struct memblock;
@@ -507,7 +513,6 @@ struct rc_allocator : public vallocator {
 		char offset = *((char*)ptr - 1);
 		internal_free_i((char*)ptr - offset, size + alignment);
 	}
-	void internal_cleanup() {}
 };
 
 template< unsigned AllocSize,
@@ -598,6 +603,9 @@ struct default_allocator {
 		allocator.internal_free(ptr, byte_size, alignment, size_of);
 	}
 	inline vallocator& get_allocator() {
+		return allocator.get_allocator();
+	}
+	inline const vallocator& get_allocator() const {
 		return allocator.get_allocator();
 	}
 };

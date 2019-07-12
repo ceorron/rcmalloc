@@ -28,12 +28,23 @@
 
 namespace rcmalloc {
 
+void vallocator::internal_add_stack_variable(void* stkptr, stack_variable_cleanup fptr) {
+	//add pointer to stack item
+	//NEEDED by garbage collectors only
+}
+void vallocator::internal_cleanup() {
+	//do stop the world cleanup
+	//NEEDED by garbage collectors only
+}
 void* vallocator::internal_dereference(void* ptr) {
 	//pointer dereference
 	//NEEDED by garbage collectors only
 	return ptr;
 }
 vallocator& vallocator::get_allocator() {
+	return *this;
+}
+const vallocator& vallocator::get_allocator() const {
 	return *this;
 }
 
