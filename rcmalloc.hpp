@@ -231,10 +231,17 @@ struct vallocator;
 typedef void (*stack_variable_cleanup)(vallocator* allocator, void* stkptr);
 
 struct vallocator {
+	//general virtual base class
+	virtual const char* name() const = 0;
+	virtual void ctorCopy(void* dat) const = 0;
+	virtual void ctorMove(void* dat) = 0;
+	virtual rcmalloc::object_data getDataDesc() const = 0;
+	virtual ~vallocator();
+	//object allocation
 	virtual void* internal_malloc(size_t size, size_t alignment, size_t size_of) = 0;
 	virtual void* internal_realloc(const realloc_data* dat) = 0;
 	virtual void internal_free(void* ptr, size_t size, size_t alignment, size_t size_of) = 0;
-	//for garbage collectors
+	//garbage collectors
 	virtual void internal_add_stack_variable(void* stkptr, stack_variable_cleanup fptr);
 	virtual void internal_remove_stack_variable_range(void* stkptr, size_t frame_size);
 	virtual void internal_cleanup();
@@ -457,6 +464,20 @@ struct rc_allocator : public vallocator {
 			return;
 		}
 		sortMemBlockDown(blockfreespace, out);
+	}
+
+	//virtual functions
+	const char* name() const {
+		return "rc_allocator";
+	}
+	void ctorCopy(void* dat) const {
+		new (dat) rc_allocator(*this);
+	}
+	void ctorMove(void* dat) {
+		new (dat) rc_allocator(std::move(*this));
+	}
+	rcmalloc::object_data getDataDesc() const {
+		return rcmalloc::object_data{std::alignment_of<rc_allocator>() , sizeof(rc_allocator)};
 	}
 
 	void* internal_malloc(size_t size, size_t alignment, size_t size_of) {

@@ -28,6 +28,7 @@
 
 namespace rcmalloc {
 
+vallocator::~vallocator() {}
 void vallocator::internal_add_stack_variable(void* stkptr, stack_variable_cleanup fptr) {
 	//add pointer to stack item
 	//NEEDED by garbage collectors only
