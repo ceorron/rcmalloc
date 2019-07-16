@@ -123,24 +123,6 @@ void move_object_list_backward(void* begfrm, void* endfrm, void* endto,
 	for(; lclendfrm != lclbegfrm; lclendfrm-=size_of, lclendto-=size_of)
 		move_func(lclendfrm, lclendto);
 }
-void move_object_list_forward_intermediary(void* begfrm, void* endfrm, void* begto,
-										   size_t size_of, object_move_func intermediary_move_func) {
-	char* lclbegfrm = (char*)begfrm;
-	char* lclendfrm = (char*)endfrm;
-	char* lclbegto = (char*)begto;
-
-	for(; lclbegfrm != lclendfrm; lclbegfrm+=size_of, lclbegto+=size_of)
-		intermediary_move_func(lclbegfrm, lclbegto);
-}
-void move_object_list_backward_intermediary(void* begfrm, void* endfrm, void* endto,
-											size_t size_of, object_move_func intermediary_move_func) {
-	char* lclbegfrm = (char*)begfrm - size_of;
-	char* lclendfrm = (char*)endfrm - size_of;
-	char* lclendto = (char*)endto - size_of;
-
-	for(; lclendfrm != lclbegfrm; lclendfrm-=size_of, lclendto-=size_of)
-		intermediary_move_func(lclendfrm, lclendto);
-}
 void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
 			 const realloc_data& dat) {
 	//no move if moving to same place
@@ -151,25 +133,21 @@ void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
 		//better performance for trivially copyable types
 		memmove((char*)begto, (char*)begfrm, dist((char*)begfrm, (char*)endfrm));
 	} else {
+		object_move_func mvfunc;
+		if((size_t)abs(dist((char*)begfrm, (char*)begto)) < dat.size_of)
+			//if we need an intermediary (partial object overlap)
+			mvfunc = dat.intermediary_move_func;
+		else
+			mvfunc = dat.move_func;
 		if((char*)begto >= (char*)begfrm && (char*)begto < (char*)endfrm) {
 			//overlap at the beginning
-			if((size_t)abs((char*)endfrm - (char*)endto) < dat.size_of)
-				//if we need an intermediary (partial object overlap)
-				move_object_list_backward_intermediary(begfrm, endfrm, endto,
-													   dat.size_of, dat.intermediary_move_func);
-			else
-				move_object_list_backward(begfrm, endfrm, endto,
-										  dat.size_of, dat.move_func);
+			move_object_list_backward(begfrm, endfrm, endto,
+									  dat.size_of, mvfunc);
 			return;
 		} else if((char*)endto >= (char*)begfrm && (char*)endto < (char*)endfrm) {
 			//overlap at the end
-			if((size_t)abs((char*)begfrm - (char*)begto) < dat.size_of)
-				//if we need an intermediary (partial object overlap)
-				move_object_list_forward_intermediary(begfrm, endfrm, begto,
-													  dat.size_of, dat.intermediary_move_func);
-			else
-				move_object_list_forward(begfrm, endfrm, begto,
-										 dat.size_of, dat.move_func);
+			move_object_list_forward(begfrm, endfrm, begto,
+									 dat.size_of, mvfunc);
 			return;
 		}
 		//just move
