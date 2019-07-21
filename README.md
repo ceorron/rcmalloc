@@ -85,10 +85,10 @@ int main() {
             /*ssize_t keep_to_byte_offset_2=*/ 140 * sizeof(a_struct),
             /*size_t alignment=*/ std::alignment_of<a_struct>(),
             /*size_t size_of=*/ sizeof(a_struct),
-            //NOTE *** move_func and intermediary_move_func function pointers can be 0/NULL if std::is_trivial<a_struct>::value == true ***
+            //NOTE *** move_func and intermediary_move_func function pointers can be 0/NULL if std::is_trivially_copyable<a_struct>::value == true ***
             /*object_move_func move_func=*/ object_move_generator<a_struct>::object_move,
             /*object_move_func intermediary_move_func=*/ object_move_generator<a_struct>::object_intermediary_move,
-            /*bool istrivial=*/ std::is_trivial<a_struct>::value
+            /*bool istrivial=*/ std::is_trivially_copyable<a_struct>::value
         };
         l2 = (a_struct*)allctr.reallocate(&rdat);
 
