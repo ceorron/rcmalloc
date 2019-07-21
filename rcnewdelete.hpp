@@ -31,9 +31,30 @@
 //replace allocator new and delete
 void* operator new(std::size_t count) _GLIBCXX_THROW (std::bad_alloc);
 void* operator new[](std::size_t count) _GLIBCXX_THROW (std::bad_alloc);
+#if __cpp_aligned_new
+void* operator new(std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc);
+void* operator new[](std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc);
+#endif
 void* operator new(std::size_t count, const std::nothrow_t&) noexcept;
 void* operator new[](std::size_t count, const std::nothrow_t&) noexcept;
+#if __cpp_aligned_new
+void* operator new(std::size_t count,
+				   std::align_val_t al, const std::nothrow_t&) noexcept;
+void* operator new[](std::size_t count,
+					 std::align_val_t al, const std::nothrow_t&) noexcept;
+#endif
+
 void operator delete(void* ptr) noexcept;
 void operator delete[](void* ptr) noexcept;
+#if __cpp_aligned_new
+void operator delete(void* ptr, std::align_val_t al) noexcept;
+void operator delete[](void* ptr, std::align_val_t al) noexcept;
+#endif
 void operator delete(void* ptr, std::size_t sz) noexcept;
 void operator delete[](void* ptr, std::size_t sz) noexcept;
+#if __cpp_aligned_new
+void operator delete(void* ptr, std::size_t sz,
+					 std::align_val_t al) noexcept;
+void operator delete[](void* ptr, std::size_t sz,
+					   std::align_val_t al) noexcept;
+#endif
