@@ -238,14 +238,15 @@ struct vallocator {
 	virtual rcmalloc::object_data getDataDesc() const = 0;
 	virtual ~vallocator();
 	//object allocation
-	virtual void* internal_malloc(size_t size, size_t alignment, size_t size_of) = 0;
-	virtual void* internal_realloc(const realloc_data* dat) = 0;
-	virtual void internal_free(void* ptr, size_t size, size_t alignment, size_t size_of) = 0;
+	virtual void* do_malloc(size_t size, size_t alignment, size_t size_of) = 0;
+	virtual void* do_realloc(const realloc_data* dat) = 0;
+	virtual void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) = 0;
 	//garbage collectors
-	virtual void internal_add_stack_variable(void* stkptr, stack_variable_cleanup fptr);
-	virtual void internal_remove_stack_variable_range(void* stkptr, size_t frame_size);
-	virtual void internal_cleanup();
-	virtual void* internal_dereference(void* ptr);
+	virtual void do_add_stack_variable(void* stkptr, stack_variable_cleanup fptr);
+	virtual void do_remove_stack_variable_range(void* stkptr, size_t frame_size);
+	virtual void do_cleanup();
+	virtual void do_test_cleanup();
+	virtual void* do_dereference(void* ptr);
 	//get pointer to this
 	vallocator& get_allocator();
 	const vallocator& get_allocator() const;
@@ -480,7 +481,7 @@ struct rc_allocator : public vallocator {
 		return rcmalloc::object_data{std::alignment_of<rc_allocator>() , sizeof(rc_allocator)};
 	}
 
-	void* internal_malloc(size_t size, size_t alignment, size_t size_of) {
+	void* do_malloc(size_t size, size_t alignment, size_t size_of) {
 		//handle alignment
 		//always allocate atleast one byte!
 		if(size == 0) size = 1;
@@ -503,10 +504,10 @@ struct rc_allocator : public vallocator {
 		*((char*)rtn - 1) = offset;
 		return rtn;
 	}
-	void* internal_realloc(const realloc_data* dat) {
+	void* do_realloc(const realloc_data* dat) {
 		realloc_data lclDat = *dat;
 		if(lclDat.ptr == 0)
-			return internal_malloc(lclDat.to_byte_size, lclDat.alignment, lclDat.size_of);
+			return do_malloc(lclDat.to_byte_size, lclDat.alignment, lclDat.size_of);
 		//always allocate atleast one byte, assume one byte was allocated last time!
 		if(lclDat.from_byte_size == 0) lclDat.from_byte_size = 1;
 		if(lclDat.to_byte_size == 0) lclDat.to_byte_size = 1;
@@ -524,7 +525,7 @@ struct rc_allocator : public vallocator {
 				offset
 			);
 	}
-	void internal_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
+	void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
 		//handle alignment
 		if(ptr == 0)
 			return;
@@ -542,14 +543,14 @@ template< unsigned AllocSize,
 struct rc_internal_allocator {
 	static rc_allocator<AllocSize, blockID> fa;
 
-	inline static void* internal_malloc(size_t size, size_t alignment, size_t size_of) {
-		return fa.internal_malloc(size, alignment, size_of);
+	inline static void* do_malloc(size_t size, size_t alignment, size_t size_of) {
+		return fa.do_malloc(size, alignment, size_of);
 	}
-	inline static void* internal_realloc(const realloc_data* dat) {
-		return fa.internal_realloc(dat);
+	inline static void* do_realloc(const realloc_data* dat) {
+		return fa.do_realloc(dat);
 	}
-	inline static void internal_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
-		fa.internal_free(ptr, size, alignment, size_of);
+	inline static void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
+		fa.do_free(ptr, size, alignment, size_of);
 	}
 	inline static vallocator& get_allocator() {
 		return fa.get_allocator();
@@ -567,23 +568,23 @@ struct rc_multi_threaded_internal_allocator {
 	static Mtx mutex;
 	static rc_allocator<AllocSize, blockID> fia;
 
-	static void* internal_malloc(size_t size, size_t alignment, size_t size_of) {
+	static void* do_malloc(size_t size, size_t alignment, size_t size_of) {
 		std::lock_guard<Mtx> lg(mutex);
-		return fia.internal_malloc(size, alignment, size_of);
+		return fia.do_malloc(size, alignment, size_of);
 	}
-	static void* internal_realloc(const realloc_data* dat) {
+	static void* do_realloc(const realloc_data* dat) {
 		//for performance - don't lock on no change
 		if(dat->from_byte_size == dat->to_byte_size && dat->from_byte_size != 0)
 			//just move the memory
 			return doMemMove((char*)dat->ptr, (char*)dat->ptr, *dat);
 
 		std::lock_guard<Mtx> lg(mutex);
-		return fia.internal_realloc(dat);
+		return fia.do_realloc(dat);
 	}
-	static void internal_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
+	static void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
 		if(ptr == 0) return;
 		std::lock_guard<Mtx> lg(mutex);
-		fia.internal_free(ptr, size, alignment, size_of);
+		fia.do_free(ptr, size, alignment, size_of);
 	}
 	inline static vallocator& get_allocator() {
 		return fia.get_allocator();
@@ -614,15 +615,15 @@ struct default_allocator {
 	inline void* allocate(size_t byte_size,
 						  size_t alignment = std::alignment_of<T>(),
 						  size_t size_of = sizeof(T)) {
-		return allocator.internal_malloc(byte_size, alignment, size_of);
+		return allocator.do_malloc(byte_size, alignment, size_of);
 	}
 	inline void* reallocate(const realloc_data* dat) {
-		return allocator.internal_realloc(dat);
+		return allocator.do_realloc(dat);
 	}
 	inline void deallocate(void* ptr, size_t byte_size,
 						   size_t alignment = std::alignment_of<T>(),
 						   size_t size_of = sizeof(T)) {
-		allocator.internal_free(ptr, byte_size, alignment, size_of);
+		allocator.do_free(ptr, byte_size, alignment, size_of);
 	}
 	inline vallocator& get_allocator() {
 		return allocator.get_allocator();
