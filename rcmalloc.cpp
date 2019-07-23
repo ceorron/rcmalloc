@@ -28,6 +28,8 @@
 
 namespace rcmalloc {
 
+vgcsettings::~vgcsettings() {}
+
 vallocator::~vallocator() {}
 void vallocator::do_add_stack_variable(void* stkptr, stack_variable_cleanup fptr) {
 	//add pointer to stack item
@@ -37,11 +39,11 @@ void vallocator::do_remove_stack_variable_range(void* stkptr, size_t frame_size)
 	//remove pointers to stack items
 	//NEEDED by garbage collectors only
 }
-void vallocator::do_cleanup() {
+void vallocator::do_cleanup(const vgcsettings& settings) {
 	//do stop the world cleanup
 	//NEEDED by garbage collectors only
 }
-void vallocator::do_test_cleanup() {
+void vallocator::do_test_cleanup(const vgcsettings& settings) {
 	//do stop the world cleanup
 	//NEEDED by garbage collectors only
 }

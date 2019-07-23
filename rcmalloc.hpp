@@ -230,6 +230,15 @@ realloc_data init_realloc_data() {
 struct vallocator;
 typedef void (*stack_variable_cleanup)(vallocator* allocator, void* stkptr);
 
+struct vgcsettings {
+	//general virtual base class
+	virtual const char* name() const = 0;
+	virtual void ctorCopy(void* dat) const = 0;
+	virtual void ctorMove(void* dat) = 0;
+	virtual rcmalloc::object_data getDataDesc() const = 0;
+	virtual ~vgcsettings();
+};
+
 struct vallocator {
 	//general virtual base class
 	virtual const char* name() const = 0;
@@ -244,8 +253,8 @@ struct vallocator {
 	//garbage collectors
 	virtual void do_add_stack_variable(void* stkptr, stack_variable_cleanup fptr);
 	virtual void do_remove_stack_variable_range(void* stkptr, size_t frame_size);
-	virtual void do_cleanup();
-	virtual void do_test_cleanup();
+	virtual void do_cleanup(const vgcsettings& settings);
+	virtual void do_test_cleanup(const vgcsettings& settings);
 	virtual void* do_dereference(void* ptr);
 	//get pointer to this
 	vallocator& get_allocator();
