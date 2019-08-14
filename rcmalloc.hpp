@@ -87,6 +87,12 @@ struct basic_list {
 };
 
 template<typename T>
+inline T* basic_list_realloc(T* ptr, size_t newsize) {
+	if(ptr == 0)
+		return (T*)malloc(newsize);
+	return (T*)realloc((void*)ptr, newsize);
+}
+template<typename T>
 inline T* begin_basic_list(basic_list& ths) {
 	return (T*)ths.ptr;
 }
@@ -121,18 +127,22 @@ void dtor_basic_list(basic_list& ths) {
 	ths.size = 0;
 }
 template<typename T>
+void clear_basic_list(basic_list& ths) {
+	dtor_basic_list<T>(ths);
+}
+template<typename T>
 T* insert_basic_list(basic_list& ths, T* insrt, T&& item) {
 	if(ths.size == ths.reserved) {
 		ths.reserved = (ths.reserved == 0 ? 10 : ths.reserved * 2);
 		size_t pst = dist(begin_basic_list<T>(ths), insrt);
-		ths.ptr = realloc(ths.ptr, sizeof(T) * ths.reserved);
+		ths.ptr = basic_list_realloc<T>((T*)ths.ptr, sizeof(T) * ths.reserved);
 		insrt = (T*)ths.ptr + pst;
 	}
 
 	memmove(insrt + 1, insrt, sizeof(T) * dist(insrt, end_basic_list<T>(ths)));
 	new (insrt) T(std::move(item));
 	++ths.size;
-	memset(&item, 0, sizeof(T));
+	memset((char*)&item, 0, sizeof(T));
 	return insrt;
 }
 template<typename T>
@@ -168,7 +178,7 @@ T* malloc_new() {
 	return rtn;
 }
 template<typename T>
-void free_delete(T* ptr) {
+void delete_free(T* ptr) {
 	ptr->~T();
 	free(ptr);
 }
@@ -216,7 +226,7 @@ struct realloc_data {
 template<typename T>
 realloc_data init_realloc_data() {
 	realloc_data rtn;
-	memset(&rtn, 0, sizeof(realloc_data));
+	memset((char*)&rtn, 0, sizeof(realloc_data));
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
 	if constexpr (!std::is_trivially_copyable<T>::value) {
@@ -303,8 +313,8 @@ struct memblock {
 	void internal_free(void* ptr, size_t size, bytesizes*& freeOut);
 };
 
-template< unsigned AllocSize,
-		  unsigned blockID >
+template<unsigned AllocSize,
+		 unsigned blockID>
 struct rc_allocator : public vallocator {
 	//ordered by most recently allocated
 	basic_list blockfreespace;
@@ -464,7 +474,7 @@ struct rc_allocator : public vallocator {
 				memblock* crnt = (*out);
 				free(crnt->ptr);
 				erase_basic_list<memblock*>(blocklst, out);
-				free_delete(crnt);
+				delete_free(crnt);
 
 				auto it = std::find(begin_basic_list<memblock*>(blockfreespace),
 									end_basic_list<memblock*>(blockfreespace),
@@ -547,8 +557,8 @@ struct rc_allocator : public vallocator {
 	}
 };
 
-template< unsigned AllocSize,
-		  unsigned blockID >
+template<unsigned AllocSize,
+		 unsigned blockID>
 struct rc_internal_allocator {
 	static rc_allocator<AllocSize, blockID> fa;
 
@@ -566,13 +576,13 @@ struct rc_internal_allocator {
 	}
 };
 
-template< unsigned AllocSize,
-		  unsigned blockID >
+template<unsigned AllocSize,
+		 unsigned blockID>
 rc_allocator<AllocSize, blockID> rc_internal_allocator<AllocSize, blockID>::fa;
 
-template< typename Mtx = std::mutex,
-		  unsigned AllocSize = ALLOC_PAGE_SIZE,
-		  unsigned blockID = 0 >
+template<typename Mtx = std::mutex,
+		 unsigned AllocSize = ALLOC_PAGE_SIZE,
+		 unsigned blockID = 0>
 struct rc_multi_threaded_internal_allocator {
 	static Mtx mutex;
 	static rc_allocator<AllocSize, blockID> fia;
@@ -601,17 +611,17 @@ struct rc_multi_threaded_internal_allocator {
 };
 
 //static member construction
-template< typename Mtx,
-		  unsigned AllocSize,
-		  unsigned blockID >
+template<typename Mtx,
+		 unsigned AllocSize,
+		 unsigned blockID>
 Mtx rc_multi_threaded_internal_allocator<Mtx, AllocSize, blockID>::mutex;
-template< typename Mtx,
-		  unsigned AllocSize,
-		  unsigned blockID >
+template<typename Mtx,
+		 unsigned AllocSize,
+		 unsigned blockID>
 rc_allocator<AllocSize, blockID> rc_multi_threaded_internal_allocator<Mtx, AllocSize, blockID>::fia;
 
-template< typename T,
-		  typename IAllocator = rc_multi_threaded_internal_allocator<std::mutex, ALLOC_PAGE_SIZE, 0> >
+template<typename T,
+		 typename IAllocator = rc_multi_threaded_internal_allocator<std::mutex, ALLOC_PAGE_SIZE, 0>>
 struct default_allocator {
 	typedef T value_type;
 	typedef T& reference;
