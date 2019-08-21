@@ -169,6 +169,10 @@ template<typename T>
 inline const T& index_basic_list(const basic_list& ths, size_t idx) {
 	return *((const T*)ths.ptr + idx);
 }
+template<typename T>
+inline size_t size_basic_list(const basic_list& ths) {
+	return ths.size;
+}
 
 //prevent circular reference to new / delete
 template<typename T>
@@ -314,7 +318,7 @@ struct memblock {
 };
 
 template<unsigned AllocSize,
-		 unsigned blockID>
+		 unsigned BlockID>
 struct rc_allocator : public vallocator {
 	//ordered by most recently allocated
 	basic_list blockfreespace;
@@ -424,8 +428,8 @@ struct rc_allocator : public vallocator {
 			if(lclDat.alignment >= 2) {
 				void* rtn = rslt;
 				rcmalloc::align(lclDat.alignment,
-							 lclDat.size_of,
-							 rtn);
+								lclDat.size_of,
+								rtn);
 
 				if(rtn == rslt)
 					rtn = (char*)rtn + lclDat.alignment;
@@ -512,8 +516,8 @@ struct rc_allocator : public vallocator {
 		void* rtn = alc;
 
 		rcmalloc::align(alignment,
-					 size_of,
-					 rtn);
+						size_of,
+						rtn);
 
 		if(rtn == alc)
 			rtn = (char*)rtn + alignment;
@@ -558,9 +562,9 @@ struct rc_allocator : public vallocator {
 };
 
 template<unsigned AllocSize,
-		 unsigned blockID>
+		 unsigned BlockID>
 struct rc_internal_allocator {
-	static rc_allocator<AllocSize, blockID> fa;
+	static rc_allocator<AllocSize, BlockID> fa;
 
 	inline static void* do_malloc(size_t size, size_t alignment, size_t size_of) {
 		return fa.do_malloc(size, alignment, size_of);
@@ -577,15 +581,15 @@ struct rc_internal_allocator {
 };
 
 template<unsigned AllocSize,
-		 unsigned blockID>
-rc_allocator<AllocSize, blockID> rc_internal_allocator<AllocSize, blockID>::fa;
+		 unsigned BlockID>
+rc_allocator<AllocSize, BlockID> rc_internal_allocator<AllocSize, BlockID>::fa;
 
 template<typename Mtx = std::mutex,
 		 unsigned AllocSize = ALLOC_PAGE_SIZE,
-		 unsigned blockID = 0>
+		 unsigned BlockID = 0>
 struct rc_multi_threaded_internal_allocator {
 	static Mtx mutex;
-	static rc_allocator<AllocSize, blockID> fia;
+	static rc_allocator<AllocSize, BlockID> fia;
 
 	static void* do_malloc(size_t size, size_t alignment, size_t size_of) {
 		std::lock_guard<Mtx> lg(mutex);
@@ -613,12 +617,12 @@ struct rc_multi_threaded_internal_allocator {
 //static member construction
 template<typename Mtx,
 		 unsigned AllocSize,
-		 unsigned blockID>
-Mtx rc_multi_threaded_internal_allocator<Mtx, AllocSize, blockID>::mutex;
+		 unsigned BlockID>
+Mtx rc_multi_threaded_internal_allocator<Mtx, AllocSize, BlockID>::mutex;
 template<typename Mtx,
 		 unsigned AllocSize,
-		 unsigned blockID>
-rc_allocator<AllocSize, blockID> rc_multi_threaded_internal_allocator<Mtx, AllocSize, blockID>::fia;
+		 unsigned BlockID>
+rc_allocator<AllocSize, BlockID> rc_multi_threaded_internal_allocator<Mtx, AllocSize, BlockID>::fia;
 
 template<typename T,
 		 typename IAllocator = rc_multi_threaded_internal_allocator<std::mutex, ALLOC_PAGE_SIZE, 0>>

@@ -74,8 +74,8 @@ char getMemOffset(void* ptr, size_t alignment, size_t size_of) {
 
 	void* rtn = ptr;
 	rcmalloc::align(alignment,
-				 size_of,
-				 rtn);
+					size_of,
+					rtn);
 
 	if(rtn == ptr)
 		rtn = (char*)rtn + alignment;
@@ -89,8 +89,8 @@ void* setAlignment(void* ptr, size_t alignment, size_t size_of) {
 
 	void* rtn = ptr;
 	rcmalloc::align(alignment,
-				 size_of,
-				 rtn);
+					size_of,
+					rtn);
 
 	if(rtn == ptr)
 		rtn = (char*)rtn + alignment;
@@ -401,8 +401,8 @@ void* memblock::internal_realloc(
 
 		void* rtn = rslt;
 		rcmalloc::align(dat->alignment,
-					 dat->size_of,
-					 rtn);
+						dat->size_of,
+						rtn);
 
 		if(rtn == rslt)
 			rtn = (char*)rtn + dat->alignment;
@@ -483,8 +483,8 @@ void* memblock::internal_realloc(
 	if(dat->alignment >= 2) {
 		void* rtn = rslt;
 		rcmalloc::align(dat->alignment,
-					 dat->size_of,
-					 rtn);
+						dat->size_of,
+						rtn);
 
 		if(rtn == rslt)
 			rtn = (char*)rtn + dat->alignment;
