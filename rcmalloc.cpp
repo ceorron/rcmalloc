@@ -31,14 +31,14 @@ namespace rcmalloc {
 alloc_data init_alloc_data_basic() {
 	alloc_data rtn;
 	memset((char*)&rtn, 0, sizeof(alloc_data));
-	rtn.minalignment = sizeof(uintptr_t);
+	rtn.minalignment = std::alignment_of<uintptr_t>();
 	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
 }
 realloc_data init_realloc_data_basic() {
 	realloc_data rtn;
 	memset((char*)&rtn, 0, sizeof(realloc_data));
-	rtn.minalignment = sizeof(uintptr_t);
+	rtn.minalignment = std::alignment_of<uintptr_t>();
 	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
 }
@@ -56,7 +56,7 @@ alloc_data to_alloc_data(const realloc_data* dat) {
 dealloc_data init_dealloc_data_basic() {
 	dealloc_data rtn;
 	memset((char*)&rtn, 0, sizeof(dealloc_data));
-	rtn.minalignment = sizeof(uintptr_t);
+	rtn.minalignment = std::alignment_of<uintptr_t>();
 	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
 }

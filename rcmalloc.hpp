@@ -264,7 +264,7 @@ alloc_data init_alloc_data() {
 	memset((char*)&rtn, 0, sizeof(alloc_data));
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
-	rtn.minalignment = sizeof(uintptr_t);
+	rtn.minalignment = std::alignment_of<uintptr_t>();
 	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
 }
@@ -281,7 +281,7 @@ realloc_data init_realloc_data() {
 		rtn.intermediary_move_func = object_move_generator<T>::object_intermediary_move;
 	}
 	rtn.istrivial = std::is_trivially_copyable<T>::value;
-	rtn.minalignment = sizeof(uintptr_t);
+	rtn.minalignment = std::alignment_of<uintptr_t>();
 	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
 }
@@ -294,7 +294,7 @@ dealloc_data init_dealloc_data() {
 	memset((char*)&rtn, 0, sizeof(dealloc_data));
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
-	rtn.minalignment = sizeof(uintptr_t);
+	rtn.minalignment = std::alignment_of<uintptr_t>();
 	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
 }
