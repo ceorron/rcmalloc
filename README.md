@@ -75,26 +75,26 @@ int main() {
 
         //insert 100 elements after element 40
         realloc_data rdat = {
-            /*void* ptr=*/                                    l2,
-            /*void* hint=*/                                    0,
-            /*uint32_t from_byte_size=*/                        100 * sizeof(a_struct),
-            /*uint32_t to_byte_size=*/                        200 * sizeof(a_struct),
-            /*uint32_t keep_byte_size_1=*/                    40 * sizeof(a_struct),
-            /*uint32_t keep_byte_size_2=*/                    60 * sizeof(a_struct),
+            /*void* ptr=*/                                  l2,
+            /*void* hint=*/                                 0,
+            /*uint32_t from_byte_size=*/                    100 * sizeof(a_struct),
+            /*uint32_t to_byte_size=*/                      200 * sizeof(a_struct),
+            /*uint32_t keep_byte_size_1=*/                  40 * sizeof(a_struct),
+            /*uint32_t keep_byte_size_2=*/                  60 * sizeof(a_struct),
             /*int32_t keep_from_byte_offset_1=*/            0,
             /*int32_t keep_from_byte_offset_2=*/            40 * sizeof(a_struct),
-            /*int32_t keep_to_byte_offset_1=*/                0,
-            /*int32_t keep_to_byte_offset_2=*/                140 * sizeof(a_struct),
-            /*uint32_t from_count_1=*/                        40,
-            /*uint32_t from_count_2=*/                        60,
-            /*uint32_t alignment=*/                            std::alignment_of<a_struct>(),
-            /*uint32_t size_of=*/                            sizeof(a_struct),
-            /*uint32_t minalignment=*/                        std::alignment_of<uintptr_t>(),
-            /*uint32_t byterounding=*/                        sizeof(uintptr_t),
+            /*int32_t keep_to_byte_offset_1=*/              0,
+            /*int32_t keep_to_byte_offset_2=*/              140 * sizeof(a_struct),
+            /*uint32_t from_count_1=*/                      40,
+            /*uint32_t from_count_2=*/                      60,
+            /*uint32_t alignment=*/                         std::alignment_of<a_struct>(),
+            /*uint32_t size_of=*/                           sizeof(a_struct),
+            /*uint32_t minalignment=*/                      std::alignment_of<uintptr_t>(),
+            /*uint32_t byterounding=*/                      sizeof(uintptr_t),
             //NOTE *** move_func and intermediary_move_func function pointers can be 0/NULL if std::is_trivially_copyable<a_struct>::value == true ***
-            /*object_move_func move_func=*/                    object_move_generator<a_struct>::object_move,
+            /*object_move_func move_func=*/                 object_move_generator<a_struct>::object_move,
             /*object_move_func intermediary_move_func=*/    object_move_generator<a_struct>::object_intermediary_move,
-            /*bool istrivial=*/                                std::is_trivially_copyable<a_struct>::value
+            /*bool istrivial=*/                             std::is_trivially_copyable<a_struct>::value
         };
         l2 = (a_struct*)allctr.reallocate(&rdat);
 
