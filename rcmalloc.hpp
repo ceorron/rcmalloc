@@ -33,13 +33,12 @@
 
 namespace rcmalloc {
 
-const unsigned ALLOC_PAGE_SIZE = 4096 * 4;
+const uint32_t ALLOC_PAGE_SIZE = 4096;
 
 template<typename U>
 inline ptrdiff_t dist(U* first, U* last) {
 	return last - first;
 }
-
 inline int midpoint(unsigned imin, unsigned imax) {
 	return (imin + imax) >> 1;
 }
@@ -82,12 +81,12 @@ bool binary_search(Itr beg, Itr end, const T& item,
 //basic replacement for vector
 struct basic_list {
 	void* ptr = 0;
-	size_t reserved = 0;
-	size_t size = 0;
+	uint32_t reserved = 0;
+	uint32_t size = 0;
 };
 
 template<typename T>
-inline T* basic_list_realloc(T* ptr, size_t newsize) {
+inline T* basic_list_realloc(T* ptr, uint32_t newsize) {
 	if(ptr == 0)
 		return (T*)malloc(newsize);
 	return (T*)realloc((void*)ptr, newsize);
@@ -109,7 +108,7 @@ inline const T* end_basic_list(const basic_list& ths) {
 	return ((const T*)ths.ptr) + ths.size;
 }
 template<typename T>
-basic_list init_basic_list(size_t rsvr = 10) {
+basic_list init_basic_list(uint32_t rsvr = 10) {
 	if(rsvr == 0) rsvr = 10;
 	basic_list rtn;
 	rtn.ptr = calloc(rsvr, sizeof(T));
@@ -134,12 +133,12 @@ template<typename T>
 T* insert_basic_list(basic_list& ths, T* insrt, T&& item) {
 	if(ths.size == ths.reserved) {
 		ths.reserved = (ths.reserved == 0 ? 10 : ths.reserved * 2);
-		size_t pst = dist(begin_basic_list<T>(ths), insrt);
+		uint32_t pst = dist(begin_basic_list<T>(ths), insrt);
 		ths.ptr = basic_list_realloc<T>((T*)ths.ptr, sizeof(T) * ths.reserved);
 		insrt = (T*)ths.ptr + pst;
 	}
 
-	memmove(insrt + 1, insrt, sizeof(T) * dist(insrt, end_basic_list<T>(ths)));
+	memmove((char*)(insrt + 1), (char*)insrt, sizeof(T) * dist(insrt, end_basic_list<T>(ths)));
 	new (insrt) T(std::move(item));
 	++ths.size;
 	memset((char*)&item, 0, sizeof(T));
@@ -149,7 +148,7 @@ template<typename T>
 T* erase_basic_list(basic_list& ths, T* item) {
 	//call destructor
 	item->~T();
-	memmove(item, item + 1, sizeof(T) * dist(item + 1, end_basic_list<T>(ths)));
+	memmove((char*)item, (char*)(item + 1), sizeof(T) * dist(item + 1, end_basic_list<T>(ths)));
 	--ths.size;
 	return item;
 }
@@ -162,19 +161,29 @@ inline T* pop_back_basic_list(basic_list& ths) {
 	return erase_basic_list<T>(ths, --end_basic_list<T>(ths));
 }
 template<typename T>
-inline T& index_basic_list(basic_list& ths, size_t idx) {
+inline T& index_basic_list(basic_list& ths, uint32_t idx) {
 	return *((T*)ths.ptr + idx);
 }
 template<typename T>
-inline const T& index_basic_list(const basic_list& ths, size_t idx) {
+inline const T& index_basic_list(const basic_list& ths, uint32_t idx) {
 	return *((const T*)ths.ptr + idx);
 }
 template<typename T>
-inline size_t size_basic_list(const basic_list& ths) {
+inline uint32_t size_basic_list(const basic_list& ths) {
 	return ths.size;
 }
 
-//prevent circular reference to new / delete
+template<typename T>
+void readLclInt(const uint8_t* bfr, uint32_t& bfrPos, T& val) {
+	val = 0;
+	for(uint32_t i = 0; i < sizeof(T); ++i) {
+		val <<= 8;
+		val |= bfr[bfrPos];
+		++bfrPos;
+	}
+}
+
+//prevent circular reference to new/delete
 template<typename T>
 T* malloc_new() {
 	T* rtn = (T*)malloc(sizeof(T));
@@ -188,8 +197,8 @@ void delete_free(T* ptr) {
 }
 
 struct object_data {
-	size_t alignment;
-	size_t size_of;
+	uint32_t alignment;
+	uint32_t size_of;
 };
 
 template<typename T>
@@ -209,23 +218,57 @@ struct object_move_generator {
 
 typedef void (*object_move_func)(void* frm, void* to);
 
+struct alloc_data {
+	uint32_t size;
+	uint32_t alignment;
+	uint32_t size_of;
+	uint32_t minalignment;
+	uint32_t byterounding;
+};
+
 struct realloc_data {
 	void* ptr;
 	void* hint;
-	size_t from_byte_size;
-	size_t to_byte_size;
-	size_t keep_byte_size_1;
-	size_t keep_byte_size_2;
-	ssize_t keep_from_byte_offset_1;
-	ssize_t keep_from_byte_offset_2;
-	ssize_t keep_to_byte_offset_1;
-	ssize_t keep_to_byte_offset_2;
-	size_t alignment;
-	size_t size_of;
+	uint32_t from_byte_size;
+	uint32_t to_byte_size;
+	uint32_t keep_byte_size_1;
+	uint32_t keep_byte_size_2;
+	int32_t keep_from_byte_offset_1;
+	int32_t keep_from_byte_offset_2;
+	int32_t keep_to_byte_offset_1;
+	int32_t keep_to_byte_offset_2;
+	uint32_t from_count_1;
+	uint32_t from_count_2;
+	uint32_t alignment;
+	uint32_t size_of;
+	uint32_t minalignment;
+	uint32_t byterounding;
 	object_move_func move_func;
 	object_move_func intermediary_move_func;
 	bool istrivial;
 };
+
+struct dealloc_data {
+	void* ptr;
+	uint32_t size;
+	uint32_t alignment;
+	uint32_t size_of;
+	uint32_t minalignment;
+	uint32_t byterounding;
+};
+
+
+template<typename T>
+alloc_data init_alloc_data() {
+	alloc_data rtn;
+	memset((char*)&rtn, 0, sizeof(alloc_data));
+	rtn.alignment = std::alignment_of<T>();
+	rtn.size_of = sizeof(T);
+	rtn.minalignment = sizeof(uintptr_t);
+	rtn.byterounding = sizeof(uintptr_t);
+	return rtn;
+}
+alloc_data init_alloc_data_basic();
 
 template<typename T>
 realloc_data init_realloc_data() {
@@ -238,8 +281,24 @@ realloc_data init_realloc_data() {
 		rtn.intermediary_move_func = object_move_generator<T>::object_intermediary_move;
 	}
 	rtn.istrivial = std::is_trivially_copyable<T>::value;
+	rtn.minalignment = sizeof(uintptr_t);
+	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
 }
+realloc_data init_realloc_data_basic();
+alloc_data to_alloc_data(const realloc_data* dat);
+
+template<typename T>
+dealloc_data init_dealloc_data() {
+	dealloc_data rtn;
+	memset((char*)&rtn, 0, sizeof(dealloc_data));
+	rtn.alignment = std::alignment_of<T>();
+	rtn.size_of = sizeof(T);
+	rtn.minalignment = sizeof(uintptr_t);
+	rtn.byterounding = sizeof(uintptr_t);
+	return rtn;
+}
+dealloc_data init_dealloc_data_basic();
 
 struct vallocator;
 typedef void (*stack_variable_cleanup)(vallocator* allocator, void* stkptr);
@@ -261,12 +320,12 @@ struct vallocator {
 	virtual rcmalloc::object_data getDataDesc() const = 0;
 	virtual ~vallocator();
 	//object allocation
-	virtual void* do_malloc(size_t size, size_t alignment, size_t size_of) = 0;
+	virtual void* do_malloc(const alloc_data* dat) = 0;
 	virtual void* do_realloc(const realloc_data* dat) = 0;
-	virtual void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) = 0;
+	virtual void do_free(const dealloc_data* dat) = 0;
 	//garbage collectors
 	virtual void do_add_stack_variable(void* stkptr, stack_variable_cleanup fptr);
-	virtual void do_remove_stack_variable_range(void* stkptr, size_t frame_size);
+	virtual void do_remove_stack_variable_range(void* stkptr, uint32_t frame_size);
 	virtual void do_cleanup(const vgcsettings& settings);
 	virtual void do_test_cleanup(const vgcsettings& settings);
 	virtual void* do_dereference(void* ptr);
@@ -277,13 +336,16 @@ struct vallocator {
 
 struct memblock;
 
-void* align(size_t alignment, size_t size_of, void*& ptr);
-char getMemOffset(void* ptr, size_t alignment, size_t size_of);
-void* setAlignment(void* ptr, size_t alignment, size_t size_of);
-void* getAlignment(void* ptr, size_t alignment, size_t& size, size_t& offset);
+void roundAllocation(uint32_t minalignment, uint32_t byterounding,
+					 uint32_t& size, uint32_t& alignment);
+void roundAllocation(realloc_data& ldat);
+void* align(uint32_t alignment, uint32_t size_of, void*& ptr);
+char getMemOffset(void* ptr, uint32_t alignment, uint32_t size_of);
+void* setAlignment(void* ptr, uint32_t alignment, uint32_t size_of);
+void* getAlignment(void* ptr, uint32_t alignment, uint32_t& size, uint32_t& offset);
 
-bool moveEndFirst(char* ptr1, ssize_t keep_from_byte_offset,
-				  char* ptr2, ssize_t keep_to_byte_offset);
+bool moveEndFirst(char* ptr1, int32_t keep_from_byte_offset,
+				  char* ptr2, int32_t keep_to_byte_offset);
 void* doMemMove(char* frmPtr, char* toPtr,
 				const realloc_data& dat);
 void addMemBlock(basic_list& blocklst, memblock* nMmBlck);
@@ -293,12 +355,12 @@ void sortMemBlockDown(basic_list& blockfreespace,
 					  memblock** itr);
 
 struct bytesizes {
-	size_t bytecount;
+	uint32_t bytecount;
 	char* ptr;
 };
 struct memblock {
-	size_t bytetotal;
-	size_t byteremain;
+	uint32_t bytetotal;
+	uint32_t byteremain;
 	char* ptr;
 	//sorted by bytecount
 	basic_list sizes;
@@ -307,14 +369,14 @@ struct memblock {
 
 	void init();
 	~memblock();
-	void* internal_malloc_at_hint(size_t size, bytesizes* pfrelst, void* hint);
-	void* internal_malloc(size_t size);
+	void* internal_malloc_at_hint(uint32_t size, bytesizes* pfrelst, void* hint);
+	void* internal_malloc(uint32_t size);
 	void* internal_realloc(
 			const realloc_data* dat,
 			char offset,
 			bytesizes*& freeOut
 	);
-	void internal_free(void* ptr, size_t size, bytesizes*& freeOut);
+	void internal_free(void* ptr, uint32_t size, bytesizes*& freeOut);
 };
 
 template<unsigned AllocSize,
@@ -332,8 +394,8 @@ struct rc_allocator : public vallocator {
 		dtor_basic_list<memblock*>(blockfreespace);
 		dtor_basic_list<memblock*>(blocklst);
 	}
-	void* malloc_new_block(size_t size) {
-		size_t resz = ((size / AllocSize) + (size % AllocSize != 0 ? 1 : 0)) * AllocSize;
+	void* malloc_new_block(uint32_t size) {
+		uint32_t resz = ((size / AllocSize) + (size % AllocSize != 0 ? 1 : 0)) * AllocSize;
 
 		void* nmem = malloc(resz);
 		if(nmem == 0) return 0;
@@ -360,7 +422,7 @@ struct rc_allocator : public vallocator {
 		return nmem;
 	}
 
-	void* internal_malloc_i(size_t size) {
+	void* internal_malloc_i(uint32_t size) {
 		//if allocation >= AllocSize do new allocSize
 		if(size >= AllocSize) {
 			void* nmem = malloc(size);
@@ -379,7 +441,7 @@ struct rc_allocator : public vallocator {
 		}
 
 		//ensure we don't take too long trying to allocate, only search the first 10 blocks!!
-		unsigned i = 0;
+		uint32_t i = 0;
 		for(auto it = end_basic_list<memblock*>(blockfreespace) - 1;
 			it != begin_basic_list<memblock*>(blockfreespace) - 1 && i < 10;
 			--it, ++i) {
@@ -396,7 +458,7 @@ struct rc_allocator : public vallocator {
 			char offset
 	) {
 		realloc_data lclDat = *dat;
-		size_t alignbytes = 0;
+		uint32_t alignbytes = 0;
 		if(lclDat.alignment >= 2)
 			alignbytes = lclDat.alignment;
 		lclDat.from_byte_size += alignbytes;
@@ -428,8 +490,8 @@ struct rc_allocator : public vallocator {
 			if(lclDat.alignment >= 2) {
 				void* rtn = rslt;
 				rcmalloc::align(lclDat.alignment,
-								lclDat.size_of,
-								rtn);
+							 lclDat.size_of,
+							 rtn);
 
 				if(rtn == rslt)
 					rtn = (char*)rtn + lclDat.alignment;
@@ -451,7 +513,7 @@ struct rc_allocator : public vallocator {
 			sortMemBlockDown(blockfreespace, out);
 		return rtn;
 	}
-	void internal_free_i(void* ptr, size_t size) {
+	void internal_free_i(void* ptr, uint32_t size) {
 		if(ptr == 0) return;
 		//search
 		memblock** out;
@@ -462,8 +524,8 @@ struct rc_allocator : public vallocator {
 
 		if((*out)->byteremain == (*out)->bytetotal) {
 			//do we want to free this block?
-			size_t remainbytes = 0;
-			unsigned i = 0;
+			uint32_t remainbytes = 0;
+			uint32_t i = 0;
 			for(auto it = end_basic_list<memblock*>(blockfreespace) - 1;
 				it != begin_basic_list<memblock*>(blockfreespace) - 1 && i < 10;
 				--it, ++i) {
@@ -501,26 +563,27 @@ struct rc_allocator : public vallocator {
 		new (dat) rc_allocator(std::move(*this));
 	}
 	rcmalloc::object_data getDataDesc() const {
-		return rcmalloc::object_data{std::alignment_of<rc_allocator>() , sizeof(rc_allocator)};
+		return rcmalloc::object_data{std::alignment_of<rc_allocator>(), sizeof(rc_allocator)};
 	}
 
-	void* do_malloc(size_t size, size_t alignment, size_t size_of) {
+	void* do_malloc(const alloc_data* dat) {
 		//handle alignment
 		//always allocate atleast one byte!
-		if(size == 0) size = 1;
-		if(alignment < 2)
-			return internal_malloc_i(size);
+		alloc_data ldat = *dat;
+		roundAllocation(ldat.minalignment, ldat.byterounding, ldat.size, ldat.alignment);
+		if(ldat.alignment < 2)
+			return internal_malloc_i(ldat.size);
 
-		size_t totalbytes = size + alignment;
+		uint32_t totalbytes = ldat.size + ldat.alignment;
 		void* alc = internal_malloc_i(totalbytes);
 		void* rtn = alc;
 
-		rcmalloc::align(alignment,
-						size_of,
-						rtn);
+		rcmalloc::align(ldat.alignment,
+					 ldat.size_of,
+					 rtn);
 
 		if(rtn == alc)
-			rtn = (char*)rtn + alignment;
+			rtn = (char*)rtn + ldat.alignment;
 
 		//store the offset to the true block of this
 		char offset = dist((char*)alc, (char*)rtn);
@@ -529,11 +592,12 @@ struct rc_allocator : public vallocator {
 	}
 	void* do_realloc(const realloc_data* dat) {
 		realloc_data lclDat = *dat;
-		if(lclDat.ptr == 0)
-			return do_malloc(lclDat.to_byte_size, lclDat.alignment, lclDat.size_of);
+		if(lclDat.ptr == 0) {
+			alloc_data lclAllocDat = to_alloc_data(dat);
+			return do_malloc(&lclAllocDat);
+		}
+		roundAllocation(lclDat);
 		//always allocate atleast one byte, assume one byte was allocated last time!
-		if(lclDat.from_byte_size == 0) lclDat.from_byte_size = 1;
-		if(lclDat.to_byte_size == 0) lclDat.to_byte_size = 1;
 		if(lclDat.from_byte_size == lclDat.to_byte_size)
 			//just move the memory
 			return doMemMove((char*)lclDat.ptr, (char*)lclDat.ptr, lclDat);
@@ -548,16 +612,18 @@ struct rc_allocator : public vallocator {
 				offset
 			);
 	}
-	void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
+	void do_free(const dealloc_data* dat) {
 		//handle alignment
-		if(ptr == 0)
+		if(dat->ptr == 0)
 			return;
-		if(alignment < 2) {
-			internal_free_i(ptr, size);
+		dealloc_data ldat = *dat;
+		roundAllocation(ldat.minalignment, ldat.byterounding, ldat.size, ldat.alignment);
+		if(ldat.alignment < 2) {
+			internal_free_i(ldat.ptr, ldat.size);
 			return;
 		}
-		char offset = *((char*)ptr - 1);
-		internal_free_i((char*)ptr - offset, size + alignment);
+		char offset = *((char*)ldat.ptr - 1);
+		internal_free_i((char*)ldat.ptr - offset, ldat.size + ldat.alignment);
 	}
 };
 
@@ -566,14 +632,14 @@ template<unsigned AllocSize,
 struct rc_internal_allocator {
 	static rc_allocator<AllocSize, BlockID> fa;
 
-	inline static void* do_malloc(size_t size, size_t alignment, size_t size_of) {
-		return fa.do_malloc(size, alignment, size_of);
+	inline static void* do_malloc(const alloc_data* dat) {
+		return fa.do_malloc(dat);
 	}
 	inline static void* do_realloc(const realloc_data* dat) {
 		return fa.do_realloc(dat);
 	}
-	inline static void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
-		fa.do_free(ptr, size, alignment, size_of);
+	inline static void do_free(const dealloc_data* dat) {
+		fa.do_free(dat);
 	}
 	inline static vallocator& get_allocator() {
 		return fa.get_allocator();
@@ -591,9 +657,9 @@ struct rc_multi_threaded_internal_allocator {
 	static Mtx mutex;
 	static rc_allocator<AllocSize, BlockID> fia;
 
-	static void* do_malloc(size_t size, size_t alignment, size_t size_of) {
+	static void* do_malloc(const alloc_data* dat) {
 		std::lock_guard<Mtx> lg(mutex);
-		return fia.do_malloc(size, alignment, size_of);
+		return fia.do_malloc(dat);
 	}
 	static void* do_realloc(const realloc_data* dat) {
 		//for performance - don't lock on no change
@@ -604,10 +670,10 @@ struct rc_multi_threaded_internal_allocator {
 		std::lock_guard<Mtx> lg(mutex);
 		return fia.do_realloc(dat);
 	}
-	static void do_free(void* ptr, size_t size, size_t alignment, size_t size_of) {
-		if(ptr == 0) return;
+	static void do_free(const dealloc_data* dat) {
+		if(dat->ptr == 0) return;
 		std::lock_guard<Mtx> lg(mutex);
-		fia.do_free(ptr, size, alignment, size_of);
+		fia.do_free(dat);
 	}
 	inline static vallocator& get_allocator() {
 		return fia.get_allocator();
@@ -635,18 +701,14 @@ struct default_allocator {
 	typedef ptrdiff_t difference_type;
 	IAllocator allocator;
 
-	inline void* allocate(size_t byte_size,
-						  size_t alignment = std::alignment_of<T>(),
-						  size_t size_of = sizeof(T)) {
-		return allocator.do_malloc(byte_size, alignment, size_of);
+	inline void* allocate(const alloc_data* dat) {
+		return allocator.do_malloc(dat);
 	}
 	inline void* reallocate(const realloc_data* dat) {
 		return allocator.do_realloc(dat);
 	}
-	inline void deallocate(void* ptr, size_t byte_size,
-						   size_t alignment = std::alignment_of<T>(),
-						   size_t size_of = sizeof(T)) {
-		allocator.do_free(ptr, byte_size, alignment, size_of);
+	inline void deallocate(const dealloc_data* dat) {
+		allocator.do_free(dat);
 	}
 	inline vallocator& get_allocator() {
 		return allocator.get_allocator();
@@ -655,6 +717,10 @@ struct default_allocator {
 		return allocator.get_allocator();
 	}
 };
+
+template<typename T,
+		 typename IAllocator = rc_multi_threaded_internal_allocator<std::mutex, ALLOC_PAGE_SIZE, 0>>
+using allocator = default_allocator<T, IAllocator>;
 
 template<typename T,
 		 typename IAllocator = default_allocator<T>>
@@ -671,11 +737,16 @@ struct default_std_allocator {
 	IAllocator allctr;
 
 	pointer allocate(size_type n, const void* hint = 0) {
-		return (pointer)allctr.allocate(n * sizeof(value_type), std::alignment_of<value_type>(), sizeof(value_type));
+		alloc_data dat = init_alloc_data<value_type>();
+		dat.size = n * sizeof(value_type);
+		return (pointer)allctr.allocate(&dat);
 	}
 
 	void deallocate(T* p, std::size_t n) {
-		allctr.deallocate(p, n * sizeof(value_type), std::alignment_of<value_type>(), sizeof(value_type));
+		dealloc_data dat = init_dealloc_data<value_type>();
+		dat.ptr = p;
+		dat.size = n * sizeof(value_type);
+		allctr.deallocate(&dat);
 	}
 
 	inline size_type max_size() {
@@ -700,24 +771,28 @@ inline bool operator!=(const default_std_allocator<T1, IAllocator>& lhs, const d
 }
 
 template<typename Alloc>
-typename Alloc::pointer allocate_init_count(size_t cnt) {
+typename Alloc::pointer allocate_init_count(uint32_t cnt) {
 	//allocate using the allocator
 	Alloc allctr;
-	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(sizeof(typename Alloc::value_type) * cnt);
+	alloc_data dat = init_alloc_data<typename Alloc::value_type>();
+	dat.size = sizeof(typename Alloc::value_type) * cnt;
+	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(&dat);
 	//do init
 	typename Alloc::pointer tmp = rtn;
-	for(size_t i = 0; i < cnt; ++i, ++tmp)
+	for(uint32_t i = 0; i < cnt; ++i, ++tmp)
 		new (tmp) typename Alloc::value_type;
 	return rtn;
 }
 template<typename Alloc>
-typename Alloc::pointer allocate_init_count(size_t cnt, const typename Alloc::value_type& val) {
+typename Alloc::pointer allocate_init_count(uint32_t cnt, const typename Alloc::value_type& val) {
 	//allocate using the allocator
 	Alloc allctr;
-	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(sizeof(typename Alloc::value_type) * cnt);
+	alloc_data dat = init_alloc_data<typename Alloc::value_type>();
+	dat.size = sizeof(typename Alloc::value_type) * cnt;
+	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(&dat);
 	//do init
 	typename Alloc::pointer tmp = rtn;
-	for(size_t i = 0; i < cnt; ++i, ++tmp)
+	for(uint32_t i = 0; i < cnt; ++i, ++tmp)
 		new (tmp) typename Alloc::value_type(val);
 	return rtn;
 }
@@ -731,7 +806,9 @@ template<typename Alloc>
 inline typename Alloc::pointer allocate_init(const typename Alloc::value_type& val) {
 	//allocate using the allocator
 	Alloc allctr;
-	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(sizeof(typename Alloc::value_type));
+	alloc_data dat = init_alloc_data<typename Alloc::value_type>();
+	dat.size = sizeof(typename Alloc::value_type);
+	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(&dat);
 	new (rtn) typename Alloc::value_type(val);
 	return rtn;
 }
@@ -740,31 +817,38 @@ template<typename Alloc>
 inline typename Alloc::pointer allocate_init(typename Alloc::value_type&& val) {
 	//allocate using the allocator
 	Alloc allctr;
-	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(sizeof(typename Alloc::value_type));
+	alloc_data dat = init_alloc_data<typename Alloc::value_type>();
+	dat.size = sizeof(typename Alloc::value_type);
+	typename Alloc::pointer rtn = (typename Alloc::pointer)allctr.allocate(&dat);
 	new (rtn) typename Alloc::value_type(std::move(val));
 	return rtn;
 }
 
 template<typename Alloc>
-void destruct_deallocate_count(typename Alloc::pointer ptr, size_t cnt,
-							   size_t alignment = std::alignment_of<typename Alloc::value_type>(),
-							   size_t size_of = sizeof(typename Alloc::value_type)) {
+void destruct_deallocate_count(typename Alloc::pointer ptr, uint32_t cnt,
+							   uint32_t alignment = std::alignment_of<typename Alloc::value_type>(),
+							   uint32_t size_of = sizeof(typename Alloc::value_type)) {
 	if(ptr == 0)
 		return;
 	//do destruct
 	using X = typename Alloc::value_type;
 	typename Alloc::pointer tmp = ptr;
-	for(size_t i = 0; i < cnt; ++i, ++tmp)
+	for(uint32_t i = 0; i < cnt; ++i, ++tmp)
 		tmp[i].~X();
 	//deallocate using the allocator
 	Alloc allctr;
-	allctr.deallocate(ptr, sizeof(typename Alloc::value_type) * cnt, alignment, size_of);
+	dealloc_data dat = init_dealloc_data<typename Alloc::value_type>();
+	dat.ptr = ptr;
+	dat.size = sizeof(typename Alloc::value_type) * cnt;
+	dat.alignment = alignment;
+	dat.size_of = size_of;
+	allctr.deallocate(&dat);
 }
 
 template<typename Alloc>
 inline void destruct_deallocate(typename Alloc::pointer ptr,
-								size_t alignment = std::alignment_of<typename Alloc::value_type>(),
-								size_t size_of = sizeof(typename Alloc::value_type)) {
+								uint32_t alignment = std::alignment_of<typename Alloc::value_type>(),
+								uint32_t size_of = sizeof(typename Alloc::value_type)) {
 	destruct_deallocate_count< Alloc >(ptr, 1, alignment, size_of);
 }
 
@@ -781,11 +865,11 @@ inline T* new_T(T&& val) {
 	return allocate_init< default_allocator< T > >(std::move(val));
 }
 template<typename T>
-inline T* new_T_array(size_t cnt) {
+inline T* new_T_array(uint32_t cnt) {
 	return allocate_init_count< default_allocator< T > >(cnt);
 }
 template<typename T>
-inline T* new_T_array(const T& val, size_t cnt) {
+inline T* new_T_array(const T& val, uint32_t cnt) {
 	return allocate_init_count< default_allocator< T > >(cnt, val);
 }
 
@@ -794,7 +878,7 @@ inline void delete_T(T* ptr) {
 	destruct_deallocate_count< default_allocator< T > >(ptr, 1);
 }
 template<typename T>
-inline void delete_T_array(T* ptr, size_t cnt) {
+inline void delete_T_array(T* ptr, uint32_t cnt) {
 	destruct_deallocate_count< default_allocator< T > >(ptr, cnt);
 }
 

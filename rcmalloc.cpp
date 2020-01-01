@@ -28,6 +28,39 @@
 
 namespace rcmalloc {
 
+alloc_data init_alloc_data_basic() {
+	alloc_data rtn;
+	memset((char*)&rtn, 0, sizeof(alloc_data));
+	rtn.minalignment = sizeof(uintptr_t);
+	rtn.byterounding = sizeof(uintptr_t);
+	return rtn;
+}
+realloc_data init_realloc_data_basic() {
+	realloc_data rtn;
+	memset((char*)&rtn, 0, sizeof(realloc_data));
+	rtn.minalignment = sizeof(uintptr_t);
+	rtn.byterounding = sizeof(uintptr_t);
+	return rtn;
+}
+alloc_data to_alloc_data(const realloc_data* dat) {
+	//copy across everything needed
+	alloc_data rtn;
+	memset((char*)&rtn, 0, sizeof(alloc_data));
+	rtn.size = dat->to_byte_size;
+	rtn.alignment = dat->alignment;
+	rtn.size_of = dat->size_of;
+	rtn.minalignment = dat->minalignment;
+	rtn.byterounding = dat->byterounding;
+	return rtn;
+}
+dealloc_data init_dealloc_data_basic() {
+	dealloc_data rtn;
+	memset((char*)&rtn, 0, sizeof(dealloc_data));
+	rtn.minalignment = sizeof(uintptr_t);
+	rtn.byterounding = sizeof(uintptr_t);
+	return rtn;
+}
+
 vgcsettings::~vgcsettings() {}
 
 vallocator::~vallocator() {}
@@ -35,7 +68,7 @@ void vallocator::do_add_stack_variable(void* stkptr, stack_variable_cleanup fptr
 	//add pointer to stack item
 	//NEEDED by garbage collectors only
 }
-void vallocator::do_remove_stack_variable_range(void* stkptr, size_t frame_size) {
+void vallocator::do_remove_stack_variable_range(void* stkptr, uint32_t frame_size) {
 	//remove pointers to stack items
 	//NEEDED by garbage collectors only
 }
@@ -59,7 +92,18 @@ const vallocator& vallocator::get_allocator() const {
 	return *this;
 }
 
-void* align(size_t alignment, size_t size_of, void*& ptr) {
+void roundAllocation(uint32_t minalignment, uint32_t byterounding,
+					 uint32_t& size, uint32_t& alignment) {
+	if(size == 0) size = 1;
+	if(alignment < minalignment) alignment = minalignment;
+	uint32_t md = size % byterounding;
+	if(md > 0) size += byterounding - md;
+}
+void roundAllocation(realloc_data& ldat) {
+	roundAllocation(ldat.minalignment, ldat.byterounding, ldat.from_byte_size, ldat.alignment);
+	roundAllocation(ldat.minalignment, ldat.byterounding, ldat.to_byte_size, ldat.alignment);
+}
+void* align(uint32_t alignment, uint32_t size_of, void*& ptr) {
 	//we are not concerned about the size of the resulting memory location just pass in a large value
 	size_t size = size_of * 10;
 	std::align(alignment,
@@ -68,14 +112,14 @@ void* align(size_t alignment, size_t size_of, void*& ptr) {
 			   size);
 	return ptr;
 }
-char getMemOffset(void* ptr, size_t alignment, size_t size_of) {
+char getMemOffset(void* ptr, uint32_t alignment, uint32_t size_of) {
 	if(alignment < 2)
 		return 0;
 
 	void* rtn = ptr;
 	rcmalloc::align(alignment,
-					size_of,
-					rtn);
+				 size_of,
+				 rtn);
 
 	if(rtn == ptr)
 		rtn = (char*)rtn + alignment;
@@ -83,14 +127,14 @@ char getMemOffset(void* ptr, size_t alignment, size_t size_of) {
 	//store the offset to the true block of this
 	return dist((char*)ptr, (char*)rtn);
 }
-void* setAlignment(void* ptr, size_t alignment, size_t size_of) {
+void* setAlignment(void* ptr, uint32_t alignment, uint32_t size_of) {
 	if(alignment < 2)
 		return ptr;
 
 	void* rtn = ptr;
 	rcmalloc::align(alignment,
-					size_of,
-					rtn);
+				 size_of,
+				 rtn);
 
 	if(rtn == ptr)
 		rtn = (char*)rtn + alignment;
@@ -100,7 +144,7 @@ void* setAlignment(void* ptr, size_t alignment, size_t size_of) {
 	*((char*)rtn - 1) = offset;
 	return rtn;
 }
-void* getAlignment(void* ptr, size_t alignment, size_t& size, size_t& offset) {
+void* getAlignment(void* ptr, uint32_t alignment, uint32_t& size, uint32_t& offset) {
 	if(alignment < 2) {
 		offset = 0;
 		return ptr;
@@ -111,26 +155,26 @@ void* getAlignment(void* ptr, size_t alignment, size_t& size, size_t& offset) {
 	return (char*)ptr - offset;
 }
 
-void move_object_list_forward(void* begfrm, void* endfrm, void* begto,
-							  size_t size_of, object_move_func move_func) {
+void move_object_list_forward(void* begfrm, void* endfrm, void* begto, uint32_t count,
+							  uint32_t size_of, object_move_func move_func) {
 	char* lclbegfrm = (char*)begfrm;
-	char* lclendfrm = (char*)endfrm;
+	//char* lclendfrm = (char*)endfrm;
 	char* lclbegto = (char*)begto;
 
-	for(; lclbegfrm != lclendfrm; lclbegfrm+=size_of, lclbegto+=size_of)
+	for(; count > 0; lclbegfrm+=size_of, lclbegto+=size_of, --count)
 		move_func(lclbegfrm, lclbegto);
 }
-void move_object_list_backward(void* begfrm, void* endfrm, void* endto,
-							   size_t size_of, object_move_func move_func) {
-	char* lclbegfrm = (char*)begfrm - size_of;
+void move_object_list_backward(void* begfrm, void* endfrm, void* endto, uint32_t count,
+							   uint32_t size_of, object_move_func move_func) {
+	//char* lclbegfrm = (char*)begfrm - size_of;
 	char* lclendfrm = (char*)endfrm - size_of;
 	char* lclendto = (char*)endto - size_of;
 
-	for(; lclendfrm != lclbegfrm; lclendfrm-=size_of, lclendto-=size_of)
+	for(; count > 0; lclendfrm-=size_of, lclendto-=size_of, --count)
 		move_func(lclendfrm, lclendto);
 }
 void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
-			 const realloc_data& dat) {
+			 uint32_t count, const realloc_data& dat) {
 	//no move if moving to same place
 	if(begfrm == begto)
 		return;
@@ -140,40 +184,42 @@ void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
 		memmove((char*)begto, (char*)begfrm, dist((char*)begfrm, (char*)endfrm));
 	} else {
 		object_move_func mvfunc;
-		if((size_t)abs(dist((char*)begfrm, (char*)begto)) < dat.size_of)
+		if((uint32_t)abs(dist((char*)begfrm, (char*)begto)) < dat.size_of)
 			//if we need an intermediary (partial object overlap)
 			mvfunc = dat.intermediary_move_func;
 		else
 			mvfunc = dat.move_func;
 		if((char*)begto >= (char*)begfrm && (char*)begto < (char*)endfrm) {
 			//overlap at the beginning
-			move_object_list_backward(begfrm, endfrm, endto,
+			move_object_list_backward(begfrm, endfrm, endto, count,
 									  dat.size_of, mvfunc);
 			return;
 		} else if((char*)endto >= (char*)begfrm && (char*)endto < (char*)endfrm) {
 			//overlap at the end
-			move_object_list_forward(begfrm, endfrm, begto,
+			move_object_list_forward(begfrm, endfrm, begto, count,
 									 dat.size_of, mvfunc);
 			return;
 		}
 		//just move
-		move_object_list_forward(begfrm, endfrm, begto,
+		move_object_list_forward(begfrm, endfrm, begto, count,
 								 dat.size_of, dat.move_func);
 	}
 	return;
 }
-bool moveEndFirst(char* ptr1, ssize_t keep_from_byte_offset,
-				  char* ptr2, ssize_t keep_to_byte_offset) {
+inline bool moveEndFirst(char* ptr1, int32_t keep_from_byte_offset,
+						 char* ptr2, int32_t keep_to_byte_offset) {
 	return (ptr2 + keep_to_byte_offset) > (ptr1 + keep_from_byte_offset);
 }
 void* doMemMove(char* frmPtr, char* toPtr,
 				const realloc_data& dat) {
-	size_t keep_byte_size_1 = dat.keep_byte_size_1;
-	size_t keep_byte_size_2 = dat.keep_byte_size_2;
-	ssize_t keep_from_byte_offset_1 = dat.keep_from_byte_offset_1;
-	ssize_t keep_from_byte_offset_2 = dat.keep_from_byte_offset_2;
-	ssize_t keep_to_byte_offset_1 = dat.keep_to_byte_offset_1;
-	ssize_t keep_to_byte_offset_2 = dat.keep_to_byte_offset_2;
+	uint32_t keep_byte_size_1 = dat.keep_byte_size_1;
+	uint32_t keep_byte_size_2 = dat.keep_byte_size_2;
+	int32_t keep_from_byte_offset_1 = dat.keep_from_byte_offset_1;
+	int32_t keep_from_byte_offset_2 = dat.keep_from_byte_offset_2;
+	int32_t keep_to_byte_offset_1 = dat.keep_to_byte_offset_1;
+	int32_t keep_to_byte_offset_2 = dat.keep_to_byte_offset_2;
+	uint32_t count_1 = dat.from_count_1;
+	uint32_t count_2 = dat.from_count_2;
 
 	//move the memory
 	if(moveEndFirst((char*)frmPtr, keep_from_byte_offset_2,
@@ -181,18 +227,18 @@ void* doMemMove(char* frmPtr, char* toPtr,
 		std::swap(keep_from_byte_offset_1, keep_from_byte_offset_2);
 		std::swap(keep_to_byte_offset_1, keep_to_byte_offset_2);
 		std::swap(keep_byte_size_1, keep_byte_size_2);
+		std::swap(count_1, count_2);
 	}
 	//memmove((char*)toPtr + keep_to_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1, keep_byte_size_1);
 	memMove((char*)frmPtr + keep_from_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1 + keep_byte_size_1,
 			(char*)toPtr + keep_to_byte_offset_1, (char*)toPtr + keep_to_byte_offset_1 + keep_byte_size_1,
-			dat);
+			count_1, dat);
 	//memmove((char*)toPtr + keep_to_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2, keep_byte_size_2);
 	memMove((char*)frmPtr + keep_from_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2 + keep_byte_size_2,
 			(char*)toPtr + keep_to_byte_offset_2, (char*)toPtr + keep_to_byte_offset_2 + keep_byte_size_2,
-			dat);
+			count_2, dat);
 	return toPtr;
 }
-
 
 void sortMemUp(basic_list& sizes, bytesizes* itr) {
 	//move this about in the sizes list
@@ -224,13 +270,13 @@ void memblock::init() {
 }
 memblock::~memblock() {
 	//NOTE doesn't free ptr here - faster final cleanup!!!
-	/*size_t bytetotal;
-	size_t byteremain;
+	/*uint32_t bytetotal;
+	uint32_t byteremain;
 	char* ptr;*/
 	dtor_basic_list<bytesizes>(sizes);
 	dtor_basic_list<bytesizes>(freelst);
 }
-void* memblock::internal_malloc_at_hint(size_t size, bytesizes* pfrelst, void* hint) {
+void* memblock::internal_malloc_at_hint(uint32_t size, bytesizes* pfrelst, void* hint) {
 	//can we allocate here??
 	if(pfrelst != end_basic_list<bytesizes>(freelst) &&
 	   (char*)hint >= pfrelst->ptr && ((char*)hint + size) <= (pfrelst->ptr + pfrelst->bytecount)) {
@@ -288,7 +334,7 @@ void* memblock::internal_malloc_at_hint(size_t size, bytesizes* pfrelst, void* h
 	}
 	return 0;
 }
-void* memblock::internal_malloc(size_t size) {
+void* memblock::internal_malloc(uint32_t size) {
 	//NOTE size always > 0
 	if(byteremain < size) return 0;
 
@@ -401,8 +447,8 @@ void* memblock::internal_realloc(
 
 		void* rtn = rslt;
 		rcmalloc::align(dat->alignment,
-						dat->size_of,
-						rtn);
+					 dat->size_of,
+					 rtn);
 
 		if(rtn == rslt)
 			rtn = (char*)rtn + dat->alignment;
@@ -483,8 +529,8 @@ void* memblock::internal_realloc(
 	if(dat->alignment >= 2) {
 		void* rtn = rslt;
 		rcmalloc::align(dat->alignment,
-						dat->size_of,
-						rtn);
+					 dat->size_of,
+					 rtn);
 
 		if(rtn == rslt)
 			rtn = (char*)rtn + dat->alignment;
@@ -498,7 +544,13 @@ void* memblock::internal_realloc(
 	//do memove
 	return doMemMove((char*)dat->ptr + offset, (char*)rslt, *dat);
 }
-void memblock::internal_free(void* p, size_t size, bytesizes*& freeOut) {
+void memblock::internal_free(void* p, uint32_t size, bytesizes*& freeOut) {
+	/*uint32_t bytetotal;
+	uint32_t byteremain;
+	char* ptr;
+	vector<bytesizes, basic_aligned_allocator<bytesizes>> sizes;
+	vector<bytecount, basic_aligned_allocator<bytecount>> freelst;*/
+
 	//if this isn't within this!
 	if((char*)p < ptr || (char*)p >= (ptr + bytetotal))
 		return;
@@ -554,8 +606,8 @@ void memblock::internal_free(void* p, size_t size, bytesizes*& freeOut) {
 		*sout = *before;
 
 		//remove after
-		size_t beforePos = dist(begin_basic_list<bytesizes>(sizes), sout);
-		size_t afterPos = dist(begin_basic_list<bytesizes>(sizes), aout);
+		uint32_t beforePos = dist(begin_basic_list<bytesizes>(sizes), sout);
+		uint32_t afterPos = dist(begin_basic_list<bytesizes>(sizes), aout);
 
 		freeOut = erase_basic_list<bytesizes>(freelst, after);
 		erase_basic_list<bytesizes>(sizes, aout);
@@ -616,9 +668,9 @@ void memblock::internal_free(void* p, size_t size, bytesizes*& freeOut) {
 void addMemBlock(basic_list& blocklst, memblock* nMmBlck) {
 	memblock** out;
 	rcmalloc::binary_search(begin_basic_list<memblock*>(blocklst), end_basic_list<memblock*>(blocklst), nMmBlck,
-					[](memblock* lhs, memblock* rhs) {
-						return lhs->ptr < rhs->ptr;
-					}, out);
+		[](memblock* lhs, memblock* rhs) {
+			return lhs->ptr < rhs->ptr;
+		}, out);
 	insert_basic_list<memblock*>(blocklst, out, std::move(nMmBlck));
 }
 void findBlockForPointer(basic_list& blocklst, void* ptr,
@@ -654,6 +706,7 @@ void sortMemBlockDown(basic_list& blockfreespace,
 		++itr;
 	}
 }
+
 
 }
 

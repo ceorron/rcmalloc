@@ -29,13 +29,21 @@
 //replace allocator new and delete
 void* operator new(std::size_t count) _GLIBCXX_THROW (std::bad_alloc) {
 	rcmalloc::default_allocator<char> alloc;
-	void* rtn = alloc.allocate(count + sizeof(unsigned), std::alignment_of<unsigned>(), 1);
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = std::alignment_of<unsigned>();
+	adat.size_of = 1;
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
 void* operator new[](std::size_t count) _GLIBCXX_THROW (std::bad_alloc) {
 	rcmalloc::default_allocator<char> alloc;
-	void* rtn = alloc.allocate(count + sizeof(unsigned), std::alignment_of<unsigned>(), 1);
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = std::alignment_of<unsigned>();
+	adat.size_of = 1;
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
@@ -43,27 +51,43 @@ void* operator new[](std::size_t count) _GLIBCXX_THROW (std::bad_alloc) {
 void* operator new(std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc) {
 	rcmalloc::default_allocator<char> alloc;
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
-	void* rtn = alloc.allocate(count + sizeof(unsigned), tal, (tal > 0 ? tal : 1));
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = tal;
+	adat.size_of = (tal > 0 ? tal : 1);
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
 void* operator new[](std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc) {
 	rcmalloc::default_allocator<char> alloc;
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
-	void* rtn = alloc.allocate(count + sizeof(unsigned), tal, (tal > 0 ? tal : 1));
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = tal;
+	adat.size_of = (tal > 0 ? tal : 1);
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
 #endif
 void* operator new(std::size_t count, const std::nothrow_t&) noexcept {
 	rcmalloc::default_allocator<char> alloc;
-	void* rtn = alloc.allocate(count + sizeof(unsigned), std::alignment_of<unsigned>(), 1);
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = std::alignment_of<unsigned>();
+	adat.size_of = 1;
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
 void* operator new[](std::size_t count, const std::nothrow_t&) noexcept {
 	rcmalloc::default_allocator<char> alloc;
-	void* rtn = alloc.allocate(count + sizeof(unsigned), std::alignment_of<unsigned>(), 1);
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = std::alignment_of<unsigned>();
+	adat.size_of = 1;
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
@@ -72,7 +96,11 @@ void* operator new(std::size_t count,
 				   std::align_val_t al, const std::nothrow_t&) noexcept {
 	rcmalloc::default_allocator<char> alloc;
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
-	void* rtn = alloc.allocate(count + sizeof(unsigned), tal, (tal > 0 ? tal : 1));
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = tal;
+	adat.size_of = (tal > 0 ? tal : 1);
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
@@ -80,7 +108,11 @@ void* operator new[](std::size_t count,
 					 std::align_val_t al, const std::nothrow_t&) noexcept {
 	rcmalloc::default_allocator<char> alloc;
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
-	void* rtn = alloc.allocate(count + sizeof(unsigned), tal, (tal > 0 ? tal : 1));
+	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
+	adat.size = count + sizeof(unsigned);
+	adat.alignment = tal;
+	adat.size_of = (tal > 0 ? tal : 1);
+	void* rtn = alloc.allocate(&adat);
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
@@ -91,14 +123,24 @@ void operator delete(void* ptr) noexcept {
 	std::size_t sz = *((unsigned*)ptr) + sizeof(unsigned);
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sz, std::alignment_of<unsigned>(), 1);
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sz;
+	ddat.alignment = std::alignment_of<unsigned>();
+	ddat.size_of = 1;
+	alloc.deallocate(&ddat);
 }
 void operator delete[](void* ptr) noexcept {
 	ptr = (char*)ptr - sizeof(unsigned);
 	std::size_t sz = *((unsigned*)ptr) + sizeof(unsigned);
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sz, std::alignment_of<unsigned>(), 1);
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sz;
+	ddat.alignment = std::alignment_of<unsigned>();
+	ddat.size_of = 1;
+	alloc.deallocate(&ddat);
 }
 #if __cpp_aligned_new
 void operator delete(void* ptr, std::align_val_t al) noexcept {
@@ -107,7 +149,12 @@ void operator delete(void* ptr, std::align_val_t al) noexcept {
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sz, tal, (tal > 0 ? tal : 1));
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sz;
+	ddat.alignment = tal;
+	ddat.size_of = (tal > 0 ? tal : 1);
+	alloc.deallocate(&ddat);
 }
 void operator delete[](void* ptr, std::align_val_t al) noexcept {
 	ptr = (char*)ptr - sizeof(unsigned);
@@ -115,7 +162,12 @@ void operator delete[](void* ptr, std::align_val_t al) noexcept {
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sz, tal, (tal > 0 ? tal : 1));
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sz;
+	ddat.alignment = tal;
+	ddat.size_of = (tal > 0 ? tal : 1);
+	alloc.deallocate(&ddat);
 }
 #endif
 void operator delete(void* ptr, std::size_t sz) noexcept {
@@ -123,14 +175,24 @@ void operator delete(void* ptr, std::size_t sz) noexcept {
 	sz = *((unsigned*)ptr) + sizeof(unsigned);
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sz, std::alignment_of<unsigned>(), 1);
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sz;
+	ddat.alignment = std::alignment_of<unsigned>();
+	ddat.size_of = 1;
+	alloc.deallocate(&ddat);
 }
 void operator delete[](void* ptr, std::size_t sz) noexcept {
 	ptr = (char*)ptr - sizeof(unsigned);
 	sz = *((unsigned*)ptr) + sizeof(unsigned);
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sz, std::alignment_of<unsigned>(), 1);
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sz;
+	ddat.alignment = std::alignment_of<unsigned>();
+	ddat.size_of = 1;
+	alloc.deallocate(&ddat);
 }
 #if __cpp_aligned_new
 void operator delete(void* ptr, std::size_t sz,
@@ -140,7 +202,12 @@ void operator delete(void* ptr, std::size_t sz,
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sze, tal, (tal > 0 ? tal : 1));
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sze;
+	ddat.alignment = tal;
+	ddat.size_of = (tal > 0 ? tal : 1);
+	alloc.deallocate(&ddat);
 }
 void operator delete[](void* ptr, std::size_t sz,
 					   std::align_val_t al) noexcept {
@@ -149,6 +216,11 @@ void operator delete[](void* ptr, std::size_t sz,
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
 
 	rcmalloc::default_allocator<char> alloc;
-	alloc.deallocate(ptr, sze, tal, (tal > 0 ? tal : 1));
+	rcmalloc::dealloc_data ddat = rcmalloc::init_dealloc_data_basic();
+	ddat.ptr = ptr;
+	ddat.size = sze;
+	ddat.alignment = tal;
+	ddat.size_of = (tal > 0 ? tal : 1);
+	alloc.deallocate(&ddat);
 }
 #endif
