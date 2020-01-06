@@ -27,7 +27,7 @@
 #include "rcnewdelete.hpp"
 
 //replace allocator new and delete
-void* operator new(std::size_t count) _GLIBCXX_THROW (std::bad_alloc) {
+void* operator new(std::size_t count) STLIB_NEWTHROW {
 	rcmalloc::default_allocator<char> alloc;
 	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
 	adat.size = count + sizeof(unsigned);
@@ -37,7 +37,7 @@ void* operator new(std::size_t count) _GLIBCXX_THROW (std::bad_alloc) {
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
-void* operator new[](std::size_t count) _GLIBCXX_THROW (std::bad_alloc) {
+void* operator new[](std::size_t count) STLIB_NEWTHROW {
 	rcmalloc::default_allocator<char> alloc;
 	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
 	adat.size = count + sizeof(unsigned);
@@ -48,7 +48,7 @@ void* operator new[](std::size_t count) _GLIBCXX_THROW (std::bad_alloc) {
 	return (char*)rtn + sizeof(unsigned);
 }
 #if __cpp_aligned_new
-void* operator new(std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc) {
+void* operator new(std::size_t count, std::align_val_t al) STLIB_NEWTHROW {
 	rcmalloc::default_allocator<char> alloc;
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
 	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();
@@ -59,7 +59,7 @@ void* operator new(std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::
 	*((unsigned*)rtn) = count;
 	return (char*)rtn + sizeof(unsigned);
 }
-void* operator new[](std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc) {
+void* operator new[](std::size_t count, std::align_val_t al) STLIB_NEWTHROW {
 	rcmalloc::default_allocator<char> alloc;
 	size_t tal = ((int)al > std::alignment_of<unsigned>() ? (size_t)al : (size_t)std::alignment_of<unsigned>());
 	rcmalloc::alloc_data adat = rcmalloc::init_alloc_data_basic();

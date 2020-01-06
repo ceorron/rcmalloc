@@ -28,12 +28,21 @@
 #include <new>
 #include "rcmalloc.hpp"
 
+#if !defined(STLIB_NEWTHROW)
+#  if defined(_MSC_VER)
+#    define _THROW1(x)
+#    define STLIB_NEWTHROW _THROW1(_STD bad_alloc)
+#  elif defined(__GNUC__)
+#    define STLIB_NEWTHROW _GLIBCXX_THROW(std::bad_alloc)
+#  endif
+#endif
+
 //replace allocator new and delete
-void* operator new(std::size_t count) _GLIBCXX_THROW (std::bad_alloc);
-void* operator new[](std::size_t count) _GLIBCXX_THROW (std::bad_alloc);
+void* operator new(std::size_t count) STLIB_NEWTHROW;
+void* operator new[](std::size_t count) STLIB_NEWTHROW;
 #if __cpp_aligned_new
-void* operator new(std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc);
-void* operator new[](std::size_t count, std::align_val_t al) _GLIBCXX_THROW (std::bad_alloc);
+void* operator new(std::size_t count, std::align_val_t al) STLIB_NEWTHROW;
+void* operator new[](std::size_t count, std::align_val_t al) STLIB_NEWTHROW;
 #endif
 void* operator new(std::size_t count, const std::nothrow_t&) noexcept;
 void* operator new[](std::size_t count, const std::nothrow_t&) noexcept;
