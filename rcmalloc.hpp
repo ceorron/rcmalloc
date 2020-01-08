@@ -262,6 +262,7 @@ template<typename T>
 alloc_data init_alloc_data() {
 	alloc_data rtn;
 	memset((char*)&rtn, 0, sizeof(alloc_data));
+	rtn.size = sizeof(T);
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
 	rtn.minalignment = std::alignment_of<uintptr_t>();
@@ -274,6 +275,7 @@ template<typename T>
 realloc_data init_realloc_data() {
 	realloc_data rtn;
 	memset((char*)&rtn, 0, sizeof(realloc_data));
+	rtn.size = sizeof(T);
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
 	if constexpr (!std::is_trivially_copyable<T>::value) {
@@ -292,6 +294,7 @@ template<typename T>
 dealloc_data init_dealloc_data() {
 	dealloc_data rtn;
 	memset((char*)&rtn, 0, sizeof(dealloc_data));
+	rtn.size = sizeof(T);
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
 	rtn.minalignment = std::alignment_of<uintptr_t>();
