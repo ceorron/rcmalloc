@@ -104,8 +104,7 @@ void roundAllocation(realloc_data& ldat) {
 	roundAllocation(ldat.minalignment, ldat.byterounding, ldat.to_byte_size, ldat.alignment);
 }
 void* align(uint32_t alignment, uint32_t size_of, void*& ptr) {
-	//we are not concerned about the size of the resulting memory location just pass in a large value
-	size_t size = size_of * 10;
+	size_t size = alignment + size_of;
 	std::align(alignment,
 			   size_of,
 			   ptr,
