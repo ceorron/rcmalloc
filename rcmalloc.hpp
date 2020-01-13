@@ -275,7 +275,7 @@ template<typename T>
 realloc_data init_realloc_data() {
 	realloc_data rtn;
 	memset((char*)&rtn, 0, sizeof(realloc_data));
-	rtn.size = sizeof(T);
+	rtn.to_byte_size = sizeof(T);
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
 	if constexpr (!std::is_trivially_copyable<T>::value) {
