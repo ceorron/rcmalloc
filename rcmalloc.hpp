@@ -158,7 +158,7 @@ inline T* push_back_basic_list(basic_list& ths, T&& item) {
 }
 template<typename T>
 inline T* pop_back_basic_list(basic_list& ths) {
-	return erase_basic_list<T>(ths, --end_basic_list<T>(ths));
+	return erase_basic_list<T>(ths, end_basic_list<T>(ths) - 1);
 }
 template<typename T>
 inline T& index_basic_list(basic_list& ths, uint32_t idx) {
