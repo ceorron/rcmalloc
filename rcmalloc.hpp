@@ -525,33 +525,21 @@ struct rc_allocator : public vallocator {
 		bytesizes* freeOut = 0;
 		(*out)->internal_free(ptr, size, freeOut);
 
-		if((*out)->byteremain == (*out)->bytetotal) {
+		if(size_basic_list<memblock*>(blocklst) > 1 && (*out)->byteremain == (*out)->bytetotal) {
 			//do we want to free this block?
-			uint32_t remainbytes = 0;
-			uint32_t i = 0;
-			for(auto it = end_basic_list<memblock*>(blockfreespace) - 1;
-				it != begin_basic_list<memblock*>(blockfreespace) - 1 && i < 10;
-				--it, ++i) {
-				if((*it)->ptr == (*out)->ptr) {
-					--i;
-					continue;
-				}
-				remainbytes += (*it)->byteremain;
-			}
-			if(remainbytes >= AllocSize) {
-				//free/cleanup these
-				memblock* crnt = (*out);
-				free(crnt->ptr);
-				erase_basic_list<memblock*>(blocklst, out);
-				delete_free(crnt);
+			//free/cleanup these
+			memblock* crnt = (*out);
+			free(crnt->ptr);
+			erase_basic_list<memblock*>(blocklst, out);
+			delete_free(crnt);
 
-				auto it = std::find(begin_basic_list<memblock*>(blockfreespace),
-									end_basic_list<memblock*>(blockfreespace),
-									crnt);
-				erase_basic_list<memblock*>(blockfreespace, it);
-			}
+			auto it = std::find(begin_basic_list<memblock*>(blockfreespace),
+								end_basic_list<memblock*>(blockfreespace),
+								crnt);
+			erase_basic_list<memblock*>(blockfreespace, it);
 			return;
 		}
+
 		sortMemBlockDown(blockfreespace, out);
 	}
 
