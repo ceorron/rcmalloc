@@ -117,11 +117,11 @@ int main() {
 		default_allocator<int, rc_multi_threaded_internal_allocator<std::mutex, ALLOC_PAGE_SIZE, POOLB>> B;
 		default_allocator<int, rc_internal_allocator<ALLOC_PAGE_SIZE, POOLC>> C;
 
-		alloc_data allcdt1 = init_alloc_data<a_struct>();
+		alloc_data allcdt1 = init_alloc_data<int>();
 		allcdt1.size = 100 * sizeof(int);
 		allcdt1.alignment = std::alignment_of<uint64_t>();
 		int* l3 = (int*)B.allocate(&allcdt1);
-		alloc_data allcdt2 = init_alloc_data<a_struct>();
+		alloc_data allcdt2 = init_alloc_data<int>();
 		allcdt2.size = 100 * sizeof(int);
 		allcdt2.alignment = std::alignment_of<uint64_t>();
 		int* l4 = (int*)C.allocate(&allcdt2);
@@ -132,12 +132,12 @@ int main() {
 		for(unsigned i = 0; i < 100; ++i)
 			l4[i] = 1;
 
-		dealloc_data deallcdt1 = init_dealloc_data<a_struct>();
+		dealloc_data deallcdt1 = init_dealloc_data<int>();
 		deallcdt1.ptr = l3;
 		deallcdt1.size = 100 * sizeof(int);
 		deallcdt1.alignment = std::alignment_of<uint64_t>();
 		B.deallocate(&deallcdt1);
-		dealloc_data deallcdt2 = init_dealloc_data<a_struct>();
+		dealloc_data deallcdt2 = init_dealloc_data<int>();
 		deallcdt2.ptr = l4;
 		deallcdt2.size = 100 * sizeof(int);
 		deallcdt2.alignment = std::alignment_of<uint64_t>();
