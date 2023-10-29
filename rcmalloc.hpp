@@ -78,6 +78,12 @@ bool binary_search(Itr beg, Itr end, const T& item,
 	return false;
 }
 
+template<typename T>
+T* get_global_object() {
+	static T object{};
+	return &object;
+}
+
 //basic replacement for vector
 struct basic_list {
 	void* ptr = 0;
@@ -554,7 +560,7 @@ struct rc_allocator : public vallocator {
 		new (dat) rc_allocator(std::move(*this));
 	}
 	rcmalloc::object_data getDataDesc() const {
-		return rcmalloc::object_data{std::alignment_of<rc_allocator>(), sizeof(rc_allocator)};
+		return rcmalloc::object_data{(uint32_t)std::alignment_of<rc_allocator>(), sizeof(rc_allocator)};
 	}
 
 	void* do_malloc(const alloc_data* dat) {
@@ -621,38 +627,34 @@ struct rc_allocator : public vallocator {
 template<unsigned AllocSize,
 		 unsigned BlockID>
 struct rc_internal_allocator {
-	static rc_allocator<AllocSize, BlockID> fa;
+	rc_allocator<AllocSize, BlockID> fa;
 
-	inline static void* do_malloc(const alloc_data* dat) {
+	inline void* do_malloc(const alloc_data* dat) {
 		return fa.do_malloc(dat);
 	}
-	inline static void* do_realloc(const realloc_data* dat) {
+	inline void* do_realloc(const realloc_data* dat) {
 		return fa.do_realloc(dat);
 	}
-	inline static void do_free(const dealloc_data* dat) {
+	inline void do_free(const dealloc_data* dat) {
 		fa.do_free(dat);
 	}
-	inline static vallocator& get_allocator() {
+	inline vallocator& get_allocator() {
 		return fa.get_allocator();
 	}
 };
-
-template<unsigned AllocSize,
-		 unsigned BlockID>
-rc_allocator<AllocSize, BlockID> rc_internal_allocator<AllocSize, BlockID>::fa;
 
 template<typename Mtx = std::mutex,
 		 unsigned AllocSize = ALLOC_PAGE_SIZE,
 		 unsigned BlockID = 0>
 struct rc_multi_threaded_internal_allocator {
-	static Mtx mutex;
-	static rc_allocator<AllocSize, BlockID> fia;
+	Mtx mutex;
+	rc_allocator<AllocSize, BlockID> fia;
 
-	static void* do_malloc(const alloc_data* dat) {
+	void* do_malloc(const alloc_data* dat) {
 		std::lock_guard<Mtx> lg(mutex);
 		return fia.do_malloc(dat);
 	}
-	static void* do_realloc(const realloc_data* dat) {
+	void* do_realloc(const realloc_data* dat) {
 		//for performance - don't lock on no change
 		if(dat->from_byte_size == dat->to_byte_size && dat->from_byte_size != 0)
 			//just move the memory
@@ -661,25 +663,15 @@ struct rc_multi_threaded_internal_allocator {
 		std::lock_guard<Mtx> lg(mutex);
 		return fia.do_realloc(dat);
 	}
-	static void do_free(const dealloc_data* dat) {
+	void do_free(const dealloc_data* dat) {
 		if(dat->ptr == 0) return;
 		std::lock_guard<Mtx> lg(mutex);
 		fia.do_free(dat);
 	}
-	inline static vallocator& get_allocator() {
+	inline vallocator& get_allocator() {
 		return fia.get_allocator();
 	}
 };
-
-//static member construction
-template<typename Mtx,
-		 unsigned AllocSize,
-		 unsigned BlockID>
-Mtx rc_multi_threaded_internal_allocator<Mtx, AllocSize, BlockID>::mutex;
-template<typename Mtx,
-		 unsigned AllocSize,
-		 unsigned BlockID>
-rc_allocator<AllocSize, BlockID> rc_multi_threaded_internal_allocator<Mtx, AllocSize, BlockID>::fia;
 
 template<typename T,
 		 typename IAllocator = rc_multi_threaded_internal_allocator<std::mutex, ALLOC_PAGE_SIZE, 0>>
@@ -690,22 +682,26 @@ struct default_allocator {
 	typedef T* pointer;
 	typedef T const* const_pointer;
 	typedef ptrdiff_t difference_type;
-	IAllocator allocator;
 
 	inline void* allocate(const alloc_data* dat) {
-		return allocator.do_malloc(dat);
+		IAllocator* allocator = get_global_object<IAllocator>();
+		return allocator->do_malloc(dat);
 	}
 	inline void* reallocate(const realloc_data* dat) {
-		return allocator.do_realloc(dat);
+		IAllocator* allocator = get_global_object<IAllocator>();
+		return allocator->do_realloc(dat);
 	}
 	inline void deallocate(const dealloc_data* dat) {
-		allocator.do_free(dat);
+		IAllocator* allocator = get_global_object<IAllocator>();
+		allocator->do_free(dat);
 	}
 	inline vallocator& get_allocator() {
-		return allocator.get_allocator();
+		IAllocator* allocator = get_global_object<IAllocator>();
+		return allocator->get_allocator();
 	}
 	inline const vallocator& get_allocator() const {
-		return allocator.get_allocator();
+		IAllocator* allocator = get_global_object<IAllocator>();
+		return allocator->get_allocator();
 	}
 };
 
