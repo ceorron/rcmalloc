@@ -12,6 +12,8 @@ Features
  - memory pools - v.fast replacement for memory pools that generalises better
  - simple type safe alternatives to new/new[] and delete/delete[]
 
+NOTE this is a personal project, the term fast is used loosely here, and it is not recommended you use this in production.
+
 (*) Fast reallocation for custom written vector/growable list class.
 To improve performance and reduce fragmentation the allocator include a custom smart reallocate function that allows byte movement ranges to be specified from a custom vector class (not included). Allowing fast and efficient memmove calls during reallocation as well as preventing multiple memmoves usually needed by C realloc function if used with a "vector" class.
 
