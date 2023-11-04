@@ -154,25 +154,25 @@ void* getAlignment(void* ptr, uint32_t alignment, uint32_t& size, uint32_t& offs
 	return (char*)ptr - offset;
 }
 
-void move_object_list_forward(void* begfrm, void* endfrm, void* begto, uint32_t count,
+void move_object_list_forward(void* begto, void* begfrm, void* endfrm, uint32_t count,
 							  uint32_t size_of, object_move_func move_func) {
 	char* lclbegfrm = (char*)begfrm;
 	//char* lclendfrm = (char*)endfrm;
 	char* lclbegto = (char*)begto;
 
 	for(; count > 0; lclbegfrm+=size_of, lclbegto+=size_of, --count)
-		move_func(lclbegfrm, lclbegto);
+		move_func(lclbegto, lclbegfrm);
 }
-void move_object_list_backward(void* begfrm, void* endfrm, void* endto, uint32_t count,
+void move_object_list_backward(void* endto, void* begfrm, void* endfrm, uint32_t count,
 							   uint32_t size_of, object_move_func move_func) {
 	//char* lclbegfrm = (char*)begfrm - size_of;
 	char* lclendfrm = (char*)endfrm - size_of;
 	char* lclendto = (char*)endto - size_of;
 
 	for(; count > 0; lclendfrm-=size_of, lclendto-=size_of, --count)
-		move_func(lclendfrm, lclendto);
+		move_func(lclendto, lclendfrm);
 }
-void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
+void memMove(void* begto, void* begfrm, void* endfrm, void* endto,
 			 uint32_t count, const realloc_data& dat) {
 	//no move if moving to same place
 	if(begfrm == begto)
@@ -190,26 +190,26 @@ void memMove(void* begfrm, void* endfrm, void* begto, void* endto,
 			mvfunc = dat.move_func;
 		if((char*)begto >= (char*)begfrm && (char*)begto < (char*)endfrm) {
 			//overlap at the beginning
-			move_object_list_backward(begfrm, endfrm, endto, count,
+			move_object_list_backward(endto, begfrm, endfrm, count,
 									  dat.size_of, mvfunc);
 			return;
 		} else if((char*)endto >= (char*)begfrm && (char*)endto < (char*)endfrm) {
 			//overlap at the end
-			move_object_list_forward(begfrm, endfrm, begto, count,
+			move_object_list_forward(begto, begfrm, endfrm, count,
 									 dat.size_of, mvfunc);
 			return;
 		}
 		//just move
-		move_object_list_forward(begfrm, endfrm, begto, count,
+		move_object_list_forward(begto, begfrm, endfrm, count,
 								 dat.size_of, dat.move_func);
 	}
 	return;
 }
-inline bool moveEndFirst(char* ptr1, int32_t keep_from_byte_offset,
-						 char* ptr2, int32_t keep_to_byte_offset) {
-	return (ptr2 + keep_to_byte_offset) > (ptr1 + keep_from_byte_offset);
+inline bool moveEndFirst(char* toptr, int32_t keep_to_byte_offset,
+						 char* frmptr, int32_t keep_from_byte_offset) {
+	return (toptr + keep_to_byte_offset) > (frmptr + keep_from_byte_offset);
 }
-void* doMemMove(char* frmPtr, char* toPtr,
+void* doMemMove(char* toPtr, char* frmPtr,
 				const realloc_data& dat) {
 	uint32_t keep_byte_size_1 = dat.keep_byte_size_1;
 	uint32_t keep_byte_size_2 = dat.keep_byte_size_2;
@@ -221,20 +221,20 @@ void* doMemMove(char* frmPtr, char* toPtr,
 	uint32_t count_2 = dat.from_count_2;
 
 	//move the memory
-	if(moveEndFirst((char*)frmPtr, keep_from_byte_offset_2,
-					(char*)toPtr, keep_to_byte_offset_2)) {
+	if(moveEndFirst((char*)toPtr, keep_to_byte_offset_2,
+					(char*)frmPtr, keep_from_byte_offset_2)) {
 		std::swap(keep_from_byte_offset_1, keep_from_byte_offset_2);
 		std::swap(keep_to_byte_offset_1, keep_to_byte_offset_2);
 		std::swap(keep_byte_size_1, keep_byte_size_2);
 		std::swap(count_1, count_2);
 	}
 	//memmove((char*)toPtr + keep_to_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1, keep_byte_size_1);
-	memMove((char*)frmPtr + keep_from_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1 + keep_byte_size_1,
-			(char*)toPtr + keep_to_byte_offset_1, (char*)toPtr + keep_to_byte_offset_1 + keep_byte_size_1,
+	memMove((char*)toPtr + keep_to_byte_offset_1, (char*)toPtr + keep_to_byte_offset_1 + keep_byte_size_1,
+			(char*)frmPtr + keep_from_byte_offset_1, (char*)frmPtr + keep_from_byte_offset_1 + keep_byte_size_1,
 			count_1, dat);
 	//memmove((char*)toPtr + keep_to_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2, keep_byte_size_2);
-	memMove((char*)frmPtr + keep_from_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2 + keep_byte_size_2,
-			(char*)toPtr + keep_to_byte_offset_2, (char*)toPtr + keep_to_byte_offset_2 + keep_byte_size_2,
+	memMove((char*)toPtr + keep_to_byte_offset_2, (char*)toPtr + keep_to_byte_offset_2 + keep_byte_size_2,
+			(char*)frmPtr + keep_from_byte_offset_2, (char*)frmPtr + keep_from_byte_offset_2 + keep_byte_size_2,
 			count_2, dat);
 	return toPtr;
 }
@@ -541,7 +541,7 @@ void* memblock::internal_realloc(
 	}
 
 	//do memove
-	return doMemMove((char*)dat->ptr + offset, (char*)rslt, *dat);
+	return doMemMove((char*)rslt, (char*)dat->ptr + offset, *dat);
 }
 void memblock::internal_free(void* p, uint32_t size, bytesizes*& freeOut) {
 	/*uint32_t bytetotal;
