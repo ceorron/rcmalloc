@@ -211,11 +211,11 @@ struct object_data {
 template<typename T>
 struct object_move_generator {
 	static void object_move(void* frm, void* to) {
-		if constexpr (!std::is_trivially_copyable<T>::value)
+		if constexpr (!std::is_trivially_move_constructible<T>::value)
 			new (to) T(std::move(*(T*)frm));
 	}
 	static void object_intermediary_move(void* frm, void* to) {
-		if constexpr (!std::is_trivially_copyable<T>::value) {
+		if constexpr (!std::is_trivially_move_constructible<T>::value) {
 			//move to intermediary first
 			T intermediary(std::move(*(T*)frm));
 			new (to) T(std::move(intermediary));
@@ -285,7 +285,7 @@ realloc_data init_realloc_data() {
 	rtn.to_byte_size = sizeof(T);
 	rtn.alignment = std::alignment_of<T>();
 	rtn.size_of = sizeof(T);
-	if constexpr (!std::is_trivially_copyable<T>::value) {
+	if constexpr (!std::is_trivially_move_constructible<T>::value) {
 		rtn.move_func = object_move_generator<T>::object_move;
 		rtn.intermediary_move_func = object_move_generator<T>::object_intermediary_move;
 	}
