@@ -356,9 +356,9 @@ char getMemOffset(void* ptr, uint32_t alignment, uint32_t size_of);
 void* setAlignment(void* ptr, uint32_t alignment, uint32_t size_of);
 void* getAlignment(void* ptr, uint32_t alignment, uint32_t& size, uint32_t& offset);
 
-bool moveEndFirst(char* ptr1, int32_t keep_from_byte_offset,
-				  char* ptr2, int32_t keep_to_byte_offset);
-void* doMemMove(char* frmPtr, char* toPtr,
+bool moveEndFirst(char* toptr, int32_t keep_to_byte_offset,
+				  char* frmptr, int32_t keep_from_byte_offset);
+void* doMemMove(char* toPtr, char* frmPtr,
 				const realloc_data& dat);
 void addMemBlock(basic_list& blocklst, memblock* nMmBlck);
 void findBlockForPointer(basic_list& blocklst, void* ptr,
