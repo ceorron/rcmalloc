@@ -30,6 +30,7 @@
 #include <memory>
 #include <algorithm>
 #include <mutex>
+#include <type_traits>
 
 namespace rcmalloc {
 
@@ -288,7 +289,7 @@ realloc_data init_realloc_data() {
 		rtn.move_func = object_move_generator<T>::object_move;
 		rtn.intermediary_move_func = object_move_generator<T>::object_intermediary_move;
 	}
-	rtn.istrivial = std::is_trivially_copyable<T>::value;
+	rtn.istrivial = std::is_trivially_move_constructible<T>::value;
 	rtn.minalignment = std::alignment_of<uintptr_t>();
 	rtn.byterounding = sizeof(uintptr_t);
 	return rtn;
