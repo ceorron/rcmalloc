@@ -210,20 +210,22 @@ struct object_data {
 
 template<typename T>
 struct object_move_generator {
-	static void object_move(void* frm, void* to) {
-		if constexpr (!std::is_trivially_move_constructible<T>::value)
+	static void object_move(void* to, void* frm) {
+		if constexpr(!std::is_trivially_move_constructible<T>::value)
 			new (to) T(std::move(*(T*)frm));
 	}
-	static void object_intermediary_move(void* frm, void* to) {
-		if constexpr (!std::is_trivially_move_constructible<T>::value) {
-			//move to intermediary first
-			T intermediary(std::move(*(T*)frm));
-			new (to) T(std::move(intermediary));
+	static void object_intermediary_move(void* to, void* frm) {
+		if constexpr(!std::is_trivially_move_constructible<T>::value) {
+			//move to intermediary memory first
+			//do no destructor array move ctor
+			alignas(alignof(T)) char scrtch[sizeof(T)];
+			new (scrtch) T(std::move(*(T*)frm));
+			new (to) T(std::move(*(T*)scrtch));
 		}
 	}
 };
 
-typedef void (*object_move_func)(void* frm, void* to);
+typedef void (*object_move_func)(void* to, void* frm);
 
 struct alloc_data {
 	uint32_t size;
