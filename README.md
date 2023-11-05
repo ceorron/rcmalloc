@@ -96,7 +96,7 @@ int main() {
             //NOTE *** move_func and intermediary_move_func function pointers can be 0/NULL if std::is_trivially_copyable<a_struct>::value == true ***
             /*object_move_func move_func=*/                 object_move_generator<a_struct>::object_move,
             /*object_move_func intermediary_move_func=*/    object_move_generator<a_struct>::object_intermediary_move,
-            /*bool istrivial=*/                             std::is_trivially_copyable<a_struct>::value
+            /*bool istrivial=*/                             std::is_trivially_move_constructible<a_struct>::value
         };
         l2 = (a_struct*)allctr.reallocate(&rdat);
 
