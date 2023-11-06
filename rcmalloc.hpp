@@ -218,7 +218,7 @@ struct object_move_generator {
 		if constexpr(!std::is_trivially_move_constructible<T>::value) {
 			//move to intermediary memory first
 			//do no destructor array move ctor
-			alignas(alignof(T)) char scrtch[sizeof(T)];
+			alignas(T) char scrtch[sizeof(T)];
 			new (scrtch) T(std::move(*(T*)frm));
 			new (to) T(std::move(*(T*)scrtch));
 		}
