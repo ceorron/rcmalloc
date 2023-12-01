@@ -41,7 +41,7 @@ inline ptrdiff_t dist(U* first, U* last) {
 	return last - first;
 }
 inline int midpoint(unsigned imin, unsigned imax) {
-	return (imin + imax) >> 1;
+	return ((imax - imin) >> 1) + imin;
 }
 //basic binary search
 template<typename Itr, typename T, typename Less>
