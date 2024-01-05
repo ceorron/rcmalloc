@@ -2,14 +2,14 @@
 
 Features
  - robust, no known bugs or issues
- - fast, allocates large blocks that are divided up for individual allocations preventing slow OS calls to malloc/realloc/free
- - fast, simple design/binary search/pointer arithmetic ensures fast allocation/reallocation/deallocation
+ - allocates large blocks that are divided up for individual allocations preventing slow OS calls to malloc/realloc/free
+ - simple design/binary search/pointer arithmetic ensures fast allocation/reallocation/deallocation
  - small, minimal design about 1300 lines of c++ total!!
  - returns aligned memory for all types for faster load and store - alignment can be set on per allocation basis
  - low fragmentation, uses smallest matching size avaliable on allocation
  - smart reallocation function gives lower fragmentation/better locality of reference than default std allocator (using custom vector class) (*)
  - thread-safe, when needed
- - memory pools - v.fast replacement for memory pools that generalises better
+ - memory pools - replacement for memory pools that generalises better
  - simple type safe alternatives to new/new[] and delete/delete[]
 
 NOTE this is a personal project, the term fast is used loosely here, and it is not recommended you use this in production.
