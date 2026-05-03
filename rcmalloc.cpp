@@ -154,6 +154,17 @@ void* getAlignment(void* ptr, uint32_t alignment, uint32_t& size, uint32_t& offs
 	return (char*)ptr - offset;
 }
 
+inline bool between_ptrs_start(void* ptr, void* beg, void* ed) {
+	return ptr >= beg & ptr < ed;
+}
+inline bool between_ptrs_end(void* ptr, void* beg, void* ed) {
+	return ptr > beg & ptr <= ed;
+}
+bool overlap_ptrs(char* a_bg, char* a_ed, char* b_bg, char* b_ed) {
+	return between_ptrs_start(a_bg, b_bg, b_ed) || between_ptrs_end(a_ed, b_bg, b_ed) ||
+		   between_ptrs_start(b_bg, a_bg, a_ed) || between_ptrs_end(b_ed, a_bg, a_ed);
+}
+
 void move_object_list_forward(void* begto, void* begfrm, void* endfrm, uint32_t count,
 							  uint32_t size_of, object_move_func move_func) {
 	char* lclbegfrm = (char*)begfrm;
@@ -205,9 +216,10 @@ void memMove(void* begto, void* begfrm, void* endfrm, void* endto,
 	}
 	return;
 }
-inline bool moveEndFirst(char* toptr, int32_t keep_to_byte_offset,
-						 char* frmptr, int32_t keep_from_byte_offset) {
-	return (toptr + keep_to_byte_offset) > (frmptr + keep_from_byte_offset);
+inline bool moveEndFirst(char* nwleftptr, int32_t keep_nwleft_byte_offset,
+						 char* oldrightptr, int32_t keep_oldright_byte_offset) {
+	//if the new on the left overlaps with the old on the right
+	return overlap_ptrs(nwleftptr, nwleftptr + keep_nwleft_byte_offset, oldrightptr, oldrightptr + keep_oldright_byte_offset);
 }
 void* doMemMove(char* toPtr, char* frmPtr,
 				const realloc_data& dat) {
@@ -220,8 +232,8 @@ void* doMemMove(char* toPtr, char* frmPtr,
 	uint32_t count_1 = dat.from_count_1;
 	uint32_t count_2 = dat.from_count_2;
 
-	//move the memory
-	if(moveEndFirst((char*)toPtr, keep_to_byte_offset_2,
+	//swap the memory move order if there is an overlap
+	if(moveEndFirst((char*)toPtr, keep_to_byte_offset_1,
 					(char*)frmPtr, keep_from_byte_offset_2)) {
 		std::swap(keep_from_byte_offset_1, keep_from_byte_offset_2);
 		std::swap(keep_to_byte_offset_1, keep_to_byte_offset_2);
