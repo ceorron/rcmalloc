@@ -233,8 +233,8 @@ void* doMemMove(char* toPtr, char* frmPtr,
 	uint32_t count_2 = dat.from_count_2;
 
 	//swap the memory move order if there is an overlap
-	if(moveEndFirst((char*)toPtr, keep_to_byte_offset_1,
-					(char*)frmPtr, keep_from_byte_offset_2)) {
+	if(count_2 > 0 && moveEndFirst(toPtr + keep_to_byte_offset_1, keep_byte_size_1,
+								   frmPtr + keep_from_byte_offset_2, keep_byte_size_2)) {
 		std::swap(keep_from_byte_offset_1, keep_from_byte_offset_2);
 		std::swap(keep_to_byte_offset_1, keep_to_byte_offset_2);
 		std::swap(keep_byte_size_1, keep_byte_size_2);
